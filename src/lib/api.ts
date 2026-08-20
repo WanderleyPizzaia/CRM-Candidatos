@@ -2,12 +2,14 @@ import { supabase } from "./supabase";
 import type {
   AgencyMember,
   CalendarItem,
+  CalendarKind,
   Candidate,
   ChecklistItem,
   DoubledCampaign,
   Office,
   Production,
   TeamMember,
+  TeamRole,
 } from "./types";
 
 export type DashboardData = {
@@ -71,10 +73,17 @@ export type NewCandidateInput = {
   regions: string | null;
   vote_projection: string | null;
   candidate_team: string | null;
+  drive_folder_url: string | null;
 };
 
 export async function createCandidate(input: NewCandidateInput): Promise<Candidate> {
   const { data, error } = await supabase.from("candidates").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCandidate(id: number, input: NewCandidateInput): Promise<Candidate> {
+  const { data, error } = await supabase.from("candidates").update(input).eq("id", id).select().single();
   if (error) throw error;
   return data;
 }
@@ -86,5 +95,38 @@ export async function setChecklistItemCompleted(id: number, completed: boolean) 
 
 export async function setCalendarItemCompleted(id: number, completed: boolean) {
   const { error } = await supabase.from("calendar_items").update({ completed }).eq("id", id);
+  if (error) throw error;
+}
+
+export type NewCalendarItemInput = {
+  candidate_id: number;
+  title: string;
+  kind: CalendarKind;
+  starts_at: string;
+  due_at: string | null;
+  assignee_id: number | null;
+};
+
+export async function createCalendarItem(input: NewCalendarItemInput): Promise<CalendarItem> {
+  const { data, error } = await supabase.from("calendar_items").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export type NewTeamMemberInput = {
+  name: string;
+  email: string;
+  role: TeamRole;
+  active: boolean;
+};
+
+export async function createTeamMember(input: NewTeamMemberInput): Promise<TeamMember> {
+  const { data, error } = await supabase.from("team_members").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function setTeamMemberActive(id: number, active: boolean) {
+  const { error } = await supabase.from("team_members").update({ active }).eq("id", id);
   if (error) throw error;
 }

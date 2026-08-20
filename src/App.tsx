@@ -2,21 +2,28 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import {
+  createCalendarItem,
   createCandidate,
+  createTeamMember,
   fetchAgencyMembership,
   fetchDashboardData,
   setCalendarItemCompleted,
   setChecklistItemCompleted,
+  setTeamMemberActive,
+  updateCandidate,
   type DashboardData,
 } from "./lib/api";
 import type {
   AgencyMember,
   CalendarItem,
+  CalendarKind,
   Candidate,
   ChecklistItem,
   DoubledCampaign,
   Office,
   Production,
+  TeamMember,
+  TeamRole,
 } from "./lib/types";
 import { Login } from "./components/Login";
 
@@ -36,6 +43,14 @@ const roleLabels: Record<string, string> = {
   designer: "Designer",
   editor_filmmaker: "Editor/Filmmaker",
 };
+const teamRoles: TeamRole[] = ["admin", "designer", "editor_filmmaker"];
+const calendarKindLabels: Record<CalendarKind, string> = {
+  agenda: "Agenda",
+  content: "Conteúdo",
+  deadline: "Prazo",
+  recording: "Gravação",
+};
+const calendarKinds: CalendarKind[] = ["agenda", "content", "deadline", "recording"];
 
 const ELECTION_DEADLINE = new Date("2026-09-30T23:59:59-03:00");
 
@@ -110,6 +125,7 @@ type NewCandidateFormState = {
   regions: string;
   vote_projection: string;
   candidate_team: string;
+  drive_folder_url: string;
 };
 
 const emptyCandidateForm: NewCandidateFormState = {
@@ -122,16 +138,34 @@ const emptyCandidateForm: NewCandidateFormState = {
   regions: "",
   vote_projection: "",
   candidate_team: "",
+  drive_folder_url: "",
 };
 
+function candidateToFormState(candidate: Candidate): NewCandidateFormState {
+  return {
+    name: candidate.name,
+    electoral_number: candidate.electoral_number ?? "",
+    office: candidate.office,
+    investment_amount: candidate.investment_amount !== null ? String(candidate.investment_amount) : "",
+    investment_source: candidate.investment_source ?? "",
+    city: candidate.city ?? "",
+    regions: candidate.regions ?? "",
+    vote_projection: candidate.vote_projection ?? "",
+    candidate_team: candidate.candidate_team ?? "",
+    drive_folder_url: candidate.drive_folder_url ?? "",
+  };
+}
+
 function CandidateForm({
+  editing,
   onClose,
   onSave,
 }: {
+  editing?: Candidate | null;
   onClose: () => void;
   onSave: (form: NewCandidateFormState) => Promise<void>;
 }) {
-  const [form, setForm] = useState(emptyCandidateForm);
+  const [form, setForm] = useState(editing ? candidateToFormState(editing) : emptyCandidateForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
@@ -157,8 +191,8 @@ function CandidateForm({
       <div className="modal">
         <div className="modal-head">
           <div>
-            <span>NOVO CADASTRO</span>
-            <h2>Cadastrar candidato</h2>
+            <span>{editing ? "EDIÇÃO" : "NOVO CADASTRO"}</span>
+            <h2>{editing ? "Editar candidato" : "Cadastrar candidato"}</h2>
             <p>Preencha os dados operacionais da campanha.</p>
           </div>
           <button onClick={onClose}>×</button>
@@ -208,6 +242,13 @@ function CandidateForm({
             onChange={change}
             placeholder="Ex.: 42.000 votos"
           />
+          <Field
+            label="Link da pasta do Drive"
+            name="drive_folder_url"
+            value={form.drive_folder_url}
+            onChange={change}
+            placeholder="https://drive.google.com/..."
+          />
           <label className="field full">
             <span>Membros da equipe do candidato</span>
             <textarea
@@ -223,7 +264,7 @@ function CandidateForm({
             Cancelar
           </button>
           <button className="primary" onClick={save} disabled={saving}>
-            {saving ? "Salvando…" : "Salvar candidato"}
+            {saving ? "Salvando…" : editing ? "Salvar alterações" : "Salvar candidato"}
           </button>
         </div>
       </div>
@@ -238,6 +279,7 @@ function CandidateDetail({
   productions,
   doubled,
   onBack,
+  onEdit,
   onToggleChecklist,
 }: {
   candidate: Candidate;
@@ -246,6 +288,7 @@ function CandidateDetail({
   productions: Production[];
   doubled: DoubledCampaign[];
   onBack: () => void;
+  onEdit: () => void;
   onToggleChecklist: (item: ChecklistItem) => void;
 }) {
   return (
@@ -262,6 +305,9 @@ function CandidateDetail({
             {candidate.office} · número {candidate.electoral_number ?? "—"} · {candidate.city ?? "—"}
           </p>
         </div>
+        <button className="primary" onClick={onEdit}>
+          Editar ficha
+        </button>
       </div>
       <div className="detail-grid">
         <article className="panel detail-card">
@@ -285,6 +331,19 @@ function CandidateDetail({
               <dd>{candidate.regions ?? "Não informado"}</dd>
             </div>
           </dl>
+        </article>
+        <article className="panel detail-card">
+          <span>ARQUIVOS</span>
+          <h3>Pasta do Google Drive</h3>
+          {candidate.drive_folder_url ? (
+            <a className="primary small drive-link" href={candidate.drive_folder_url} target="_blank" rel="noreferrer">
+              Abrir pasta no Drive ↗
+            </a>
+          ) : (
+            <p className="empty">
+              Nenhuma pasta vinculada ainda. Clique em "Editar ficha" para colar o link da pasta do Drive.
+            </p>
+          )}
         </article>
         <article className="panel detail-card">
           <span>EQUIPE</span>
@@ -357,6 +416,308 @@ function CandidateDetail({
   );
 }
 
+type NewCalendarFormState = {
+  candidate_id: string;
+  title: string;
+  kind: CalendarKind;
+  starts_at: string;
+  due_at: string;
+  assignee_id: string;
+};
+
+function CalendarItemForm({
+  candidates,
+  teamMembers,
+  onClose,
+  onSave,
+}: {
+  candidates: Candidate[];
+  teamMembers: TeamMember[];
+  onClose: () => void;
+  onSave: (form: NewCalendarFormState) => Promise<void>;
+}) {
+  const [form, setForm] = useState<NewCalendarFormState>({
+    candidate_id: candidates[0] ? String(candidates[0].id) : "",
+    title: "",
+    kind: "agenda",
+    starts_at: "",
+    due_at: "",
+    assignee_id: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
+
+  const save = async () => {
+    if (!form.candidate_id) {
+      setError("Selecione um candidato.");
+      return;
+    }
+    if (!form.title.trim()) {
+      setError("Informe um título para o evento.");
+      return;
+    }
+    if (!form.starts_at) {
+      setError("Informe data e hora do evento.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar o evento.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <span>NOVO EVENTO</span>
+            <h2>Adicionar à agenda</h2>
+            <p>Vincule o evento a um candidato e defina data e responsável.</p>
+          </div>
+          <button onClick={onClose}>×</button>
+        </div>
+        <div className="form-grid">
+          <label className="field">
+            <span>Candidato</span>
+            <select value={form.candidate_id} onChange={(e) => change("candidate_id", e.target.value)}>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Tipo</span>
+            <select value={form.kind} onChange={(e) => change("kind", e.target.value)}>
+              {calendarKinds.map((kind) => (
+                <option key={kind} value={kind}>
+                  {calendarKindLabels[kind]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field label="Título" name="title" value={form.title} onChange={change} placeholder="Ex.: Gravação — Saúde" />
+          <label className="field">
+            <span>Data e hora de início</span>
+            <input
+              type="datetime-local"
+              value={form.starts_at}
+              onChange={(e) => change("starts_at", e.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Prazo (opcional)</span>
+            <input type="datetime-local" value={form.due_at} onChange={(e) => change("due_at", e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Responsável</span>
+            <select value={form.assignee_id} onChange={(e) => change("assignee_id", e.target.value)}>
+              <option value="">Sem responsável</option>
+              {teamMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {error && <p className="login-error">{error}</p>}
+        <div className="modal-actions">
+          <button className="secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary" onClick={save} disabled={saving}>
+            {saving ? "Salvando…" : "Adicionar evento"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgendaView({
+  items,
+  candidates,
+  onToggle,
+  onCreate,
+}: {
+  items: CalendarItem[];
+  candidates: Candidate[];
+  onToggle: (item: CalendarItem) => void;
+  onCreate: () => void;
+}) {
+  const sorted = [...items].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+  return (
+    <div className="content">
+      <div className="view-head">
+        <h2>Agenda da equipe</h2>
+        <button className="primary" onClick={onCreate}>
+          ＋ Novo evento
+        </button>
+      </div>
+      <section className="panel list-panel">
+        {sorted.length ? (
+          sorted.map((item) => {
+            const start = new Date(item.starts_at);
+            const overdue = !item.completed && start < new Date();
+            const candidateName = candidates.find((c) => c.id === item.candidate_id)?.name ?? "—";
+            return (
+              <div className="list-row" key={item.id}>
+                <button className={`check ${item.completed ? "checked" : ""}`} onClick={() => onToggle(item)}>
+                  {item.completed ? "✓" : ""}
+                </button>
+                <div className="event-date">
+                  <strong>{start.getDate()}</strong>
+                  <span>{start.toLocaleDateString("pt-BR", { month: "short" }).toUpperCase()}</span>
+                </div>
+                <div className="grow">
+                  <b>{item.title}</b>
+                  <span>
+                    {calendarKindLabels[item.kind]} · {candidateName} ·{" "}
+                    {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                {overdue && <em>ATRASADO</em>}
+              </div>
+            );
+          })
+        ) : (
+          <p className="empty">Nenhum evento cadastrado ainda.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+type NewTeamMemberFormState = {
+  name: string;
+  email: string;
+  role: TeamRole;
+};
+
+function TeamMemberForm({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (form: NewTeamMemberFormState) => Promise<void>;
+}) {
+  const [form, setForm] = useState<NewTeamMemberFormState>({ name: "", email: "", role: "designer" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
+
+  const save = async () => {
+    if (!form.name.trim() || !form.email.trim()) {
+      setError("Informe nome e e-mail.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível adicionar o membro.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <span>NOVO MEMBRO</span>
+            <h2>Adicionar à equipe</h2>
+            <p>Cadastre um membro da agência.</p>
+          </div>
+          <button onClick={onClose}>×</button>
+        </div>
+        <div className="form-grid">
+          <Field label="Nome" name="name" value={form.name} onChange={change} placeholder="Nome completo" />
+          <Field
+            label="E-mail"
+            name="email"
+            value={form.email}
+            onChange={change}
+            placeholder="nome@agenciacriando.com.br"
+          />
+          <label className="field">
+            <span>Papel</span>
+            <select value={form.role} onChange={(e) => change("role", e.target.value)}>
+              {teamRoles.map((role) => (
+                <option key={role} value={role}>
+                  {roleLabels[role]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {error && <p className="login-error">{error}</p>}
+        <div className="modal-actions">
+          <button className="secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary" onClick={save} disabled={saving}>
+            {saving ? "Salvando…" : "Adicionar membro"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamView({
+  members,
+  onCreate,
+  onToggleActive,
+}: {
+  members: TeamMember[];
+  onCreate: () => void;
+  onToggleActive: (member: TeamMember) => void;
+}) {
+  return (
+    <div className="content">
+      <div className="view-head">
+        <h2>Equipe da agência</h2>
+        <button className="primary" onClick={onCreate}>
+          ＋ Adicionar membro
+        </button>
+      </div>
+      <section className="panel list-panel">
+        {members.length ? (
+          members.map((member, index) => (
+            <div className="list-row" key={member.id}>
+              <div className={`candidate-avatar ${colorFor(index)}`}>{initialsOf(member.name)}</div>
+              <div className="grow">
+                <b>{member.name}</b>
+                <span>
+                  {member.email} · {roleLabels[member.role] ?? member.role}
+                </span>
+              </div>
+              <span className={`pill ${member.active ? "" : "inactive"}`}>{member.active ? "Ativo" : "Inativo"}</span>
+              <button className="secondary small" onClick={() => onToggleActive(member)}>
+                {member.active ? "Desativar" : "Ativar"}
+              </button>
+            </div>
+          ))
+        ) : (
+          <p className="empty">Nenhum membro cadastrado ainda.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function useSupabaseSession() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -386,6 +747,9 @@ export default function App() {
 
   const [active, setActive] = useState("Visão geral");
   const [showForm, setShowForm] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  const [showCalendarForm, setShowCalendarForm] = useState(false);
+  const [showTeamForm, setShowTeamForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -478,20 +842,70 @@ export default function App() {
       .slice(0, 4);
   }, [data]);
 
+  const candidateInputFromForm = (form: NewCandidateFormState) => ({
+    name: form.name.trim(),
+    electoral_number: form.electoral_number.trim() || null,
+    office: form.office,
+    investment_amount: parseCurrencyInput(form.investment_amount),
+    investment_source: form.investment_source.trim() || null,
+    city: form.city.trim() || null,
+    regions: form.regions.trim() || null,
+    vote_projection: form.vote_projection.trim() || null,
+    candidate_team: form.candidate_team.trim() || null,
+    drive_folder_url: form.drive_folder_url.trim() || null,
+  });
+
   const handleCreateCandidate = async (form: NewCandidateFormState) => {
-    const created = await createCandidate({
-      name: form.name.trim(),
-      electoral_number: form.electoral_number.trim() || null,
-      office: form.office,
-      investment_amount: parseCurrencyInput(form.investment_amount),
-      investment_source: form.investment_source.trim() || null,
-      city: form.city.trim() || null,
-      regions: form.regions.trim() || null,
-      vote_projection: form.vote_projection.trim() || null,
-      candidate_team: form.candidate_team.trim() || null,
-    });
+    const created = await createCandidate(candidateInputFromForm(form));
     setData((prev) => (prev ? { ...prev, candidates: [...prev.candidates, created] } : prev));
     setShowForm(false);
+  };
+
+  const handleUpdateCandidate = async (form: NewCandidateFormState) => {
+    if (!editingCandidate) return;
+    const updated = await updateCandidate(editingCandidate.id, candidateInputFromForm(form));
+    setData((prev) =>
+      prev ? { ...prev, candidates: prev.candidates.map((c) => (c.id === updated.id ? updated : c)) } : prev,
+    );
+    setEditingCandidate(null);
+  };
+
+  const handleCreateCalendarEvent = async (form: NewCalendarFormState) => {
+    const created = await createCalendarItem({
+      candidate_id: Number(form.candidate_id),
+      title: form.title.trim(),
+      kind: form.kind,
+      starts_at: new Date(form.starts_at).toISOString(),
+      due_at: form.due_at ? new Date(form.due_at).toISOString() : null,
+      assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
+    });
+    setData((prev) => (prev ? { ...prev, calendarItems: [...prev.calendarItems, created] } : prev));
+    setShowCalendarForm(false);
+  };
+
+  const handleCreateTeamMember = async (form: NewTeamMemberFormState) => {
+    const created = await createTeamMember({
+      name: form.name.trim(),
+      email: form.email.trim(),
+      role: form.role,
+      active: true,
+    });
+    setData((prev) => (prev ? { ...prev, teamMembers: [...prev.teamMembers, created] } : prev));
+    setShowTeamForm(false);
+  };
+
+  const handleToggleTeamMemberActive = async (member: TeamMember) => {
+    const nextActive = !member.active;
+    setData((prev) =>
+      prev
+        ? { ...prev, teamMembers: prev.teamMembers.map((m) => (m.id === member.id ? { ...m, active: nextActive } : m)) }
+        : prev,
+    );
+    try {
+      await setTeamMemberActive(member.id, nextActive);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao atualizar membro da equipe.");
+    }
   };
 
   const handleToggleChecklist = async (item: ChecklistItem) => {
@@ -620,7 +1034,21 @@ export default function App() {
             productions={data.productions.filter((p) => p.candidate_id === detail.id)}
             doubled={data.doubledCampaigns.filter((d) => d.candidate_id === detail.id)}
             onBack={() => setDetailId(null)}
+            onEdit={() => setEditingCandidate(detail)}
             onToggleChecklist={handleToggleChecklist}
+          />
+        ) : active === "Agenda" ? (
+          <AgendaView
+            items={data.calendarItems}
+            candidates={data.candidates}
+            onToggle={handleToggleCalendar}
+            onCreate={() => setShowCalendarForm(true)}
+          />
+        ) : active === "Equipe" ? (
+          <TeamView
+            members={data.teamMembers}
+            onCreate={() => setShowTeamForm(true)}
+            onToggleActive={handleToggleTeamMemberActive}
           />
         ) : (
           <div className="content">
@@ -787,13 +1215,29 @@ export default function App() {
                   <h3>Pastas por candidato</h3>
                   <p>Estratégia, documentos, referências e entregas em um só lugar.</p>
                 </div>
-                <button>Gerenciar vínculos →</button>
+                <button onClick={() => setActive("Candidatos")}>Gerenciar vínculos →</button>
               </section>
             </div>
           </div>
         )}
       </section>
       {showForm && <CandidateForm onClose={() => setShowForm(false)} onSave={handleCreateCandidate} />}
+      {editingCandidate && (
+        <CandidateForm
+          editing={editingCandidate}
+          onClose={() => setEditingCandidate(null)}
+          onSave={handleUpdateCandidate}
+        />
+      )}
+      {showCalendarForm && data && (
+        <CalendarItemForm
+          candidates={data.candidates}
+          teamMembers={data.teamMembers}
+          onClose={() => setShowCalendarForm(false)}
+          onSave={handleCreateCalendarEvent}
+        />
+      )}
+      {showTeamForm && <TeamMemberForm onClose={() => setShowTeamForm(false)} onSave={handleCreateTeamMember} />}
     </main>
   );
 }
