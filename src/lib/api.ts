@@ -21,26 +21,47 @@ export type DashboardData = {
   teamMembers: TeamMember[];
 };
 
+/**
+ * Uma requisição pendurada deixaria a tela presa no "carregando" para sempre,
+ * então toda chamada ao Supabase falha explicitamente depois de um tempo.
+ */
+async function withTimeout<T>(promise: PromiseLike<T>, label: string, ms = 15000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label}: o servidor não respondeu a tempo. Verifique sua conexão.`)),
+      ms,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 export async function fetchAgencyMembership(userId: string): Promise<AgencyMember | null> {
-  const { data, error } = await supabase
-    .from("agency_members")
-    .select("*")
-    .eq("auth_user_id", userId)
-    .maybeSingle();
+  const { data, error } = await withTimeout(
+    supabase.from("agency_members").select("*").eq("auth_user_id", userId).maybeSingle(),
+    "Verificação de acesso",
+  );
   if (error) throw error;
   return data;
 }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
   const [candidates, checklistItems, calendarItems, productions, doubledCampaigns, teamMembers] =
-    await Promise.all([
-      supabase.from("candidates").select("*").order("created_at", { ascending: true }),
-      supabase.from("checklist_items").select("*").order("due_date", { ascending: true }),
-      supabase.from("calendar_items").select("*").order("starts_at", { ascending: true }),
-      supabase.from("productions").select("*").order("due_at", { ascending: true }),
-      supabase.from("doubled_campaigns").select("*").order("created_at", { ascending: true }),
-      supabase.from("team_members").select("*").order("name", { ascending: true }),
-    ]);
+    await withTimeout(
+      Promise.all([
+        supabase.from("candidates").select("*").order("created_at", { ascending: true }),
+        supabase.from("checklist_items").select("*").order("due_date", { ascending: true }),
+        supabase.from("calendar_items").select("*").order("starts_at", { ascending: true }),
+        supabase.from("productions").select("*").order("due_at", { ascending: true }),
+        supabase.from("doubled_campaigns").select("*").order("created_at", { ascending: true }),
+        supabase.from("team_members").select("*").order("name", { ascending: true }),
+      ]),
+      "Carregamento dos dados",
+    );
 
   for (const result of [
     candidates,

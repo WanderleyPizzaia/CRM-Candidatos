@@ -723,14 +723,22 @@ function useSupabaseSession() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => setSession(data.session))
+      .catch(() => setSession(null))
+      .finally(() => setLoading(false));
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
+      // O supabase-js segura um lock interno durante este callback: qualquer
+      // consulta disparada em reação a ele trava. Sair da pilha do callback
+      // antes de atualizar o estado evita esse deadlock.
+      setTimeout(() => {
+        setSession(newSession);
+        setLoading(false);
+      }, 0);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -738,12 +746,20 @@ function useSupabaseSession() {
   return { session, loading };
 }
 
+type Access =
+  | { status: "checking" }
+  | { status: "authorized"; member: AgencyMember }
+  | { status: "denied" }
+  | { status: "error"; message: string };
+
 export default function App() {
   const { session, loading: sessionLoading } = useSupabaseSession();
-  const [membership, setMembership] = useState<AgencyMember | null | undefined>(undefined);
+  const [access, setAccess] = useState<Access>({ status: "checking" });
   const [data, setData] = useState<DashboardData | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   const [active, setActive] = useState("Visão geral");
   const [showForm, setShowForm] = useState(false);
@@ -752,35 +768,47 @@ export default function App() {
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
+  // A sessão é recriada a cada refresh de token; seguir o id evita recarregar tudo à toa.
+  const userId = session?.user.id ?? null;
+
   useEffect(() => {
-    if (!session) {
-      setMembership(undefined);
+    if (!userId) {
+      setAccess({ status: "checking" });
       setData(null);
       return;
     }
     let cancelled = false;
-    fetchAgencyMembership(session.user.id)
-      .then((result) => {
-        if (!cancelled) setMembership(result);
+    setAccess({ status: "checking" });
+    fetchAgencyMembership(userId)
+      .then((member) => {
+        if (cancelled) return;
+        setAccess(member ? { status: "authorized", member } : { status: "denied" });
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao verificar acesso.");
+        if (cancelled) return;
+        setAccess({
+          status: "error",
+          message: err instanceof Error ? err.message : "Erro ao verificar acesso.",
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [userId, retryKey]);
+
+  const authorized = access.status === "authorized";
 
   useEffect(() => {
-    if (!session || !membership) return;
+    if (!authorized) return;
     let cancelled = false;
     setDataLoading(true);
+    setDataError(null);
     fetchDashboardData()
       .then((result) => {
         if (!cancelled) setData(result);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar dados.");
+        if (!cancelled) setDataError(err instanceof Error ? err.message : "Erro ao carregar dados.");
       })
       .finally(() => {
         if (!cancelled) setDataLoading(false);
@@ -788,7 +816,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [session, membership]);
+  }, [authorized, retryKey]);
 
   const detail = useMemo(
     () => data?.candidates.find((c) => c.id === detailId) ?? null,
@@ -954,15 +982,35 @@ export default function App() {
     return <Login />;
   }
 
-  if (membership === undefined) {
+  if (access.status === "checking") {
     return <div className="app-loading">Verificando acesso…</div>;
   }
 
-  if (membership === null) {
+  if (access.status === "error") {
+    return (
+      <div className="access-denied">
+        <h1>Não foi possível verificar seu acesso</h1>
+        <p className="login-error">{access.message}</p>
+        <div className="modal-actions">
+          <button className="secondary" onClick={() => supabase.auth.signOut()}>
+            Sair
+          </button>
+          <button className="primary" onClick={() => setRetryKey((k) => k + 1)}>
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (access.status === "denied") {
     return (
       <div className="access-denied">
         <h1>Acesso não autorizado</h1>
-        <p>Sua conta ainda não foi vinculada à Agência Criando. Fale com um administrador.</p>
+        <p>
+          Sua conta ({session.user.email}) ainda não foi vinculada à Agência Criando. Fale com um
+          administrador.
+        </p>
         <button className="primary" onClick={() => supabase.auth.signOut()}>
           Sair
         </button>
@@ -1002,7 +1050,7 @@ export default function App() {
           <div className="avatar">{initialsOf(session.user.email ?? "?")}</div>
           <div>
             <b>{session.user.email}</b>
-            <span>{roleLabels[membership.role] ?? membership.role}</span>
+            <span>{roleLabels[access.member.role] ?? access.member.role}</span>
           </div>
           <button onClick={() => supabase.auth.signOut()} title="Sair">
             ···
@@ -1024,7 +1072,15 @@ export default function App() {
           </div>
         </header>
         {error && <p className="banner-error">{error}</p>}
-        {dataLoading || !data || !stats ? (
+        {dataError ? (
+          <div className="access-denied">
+            <h1>Não foi possível carregar os dados</h1>
+            <p className="login-error">{dataError}</p>
+            <button className="primary" onClick={() => setRetryKey((k) => k + 1)}>
+              Tentar novamente
+            </button>
+          </div>
+        ) : dataLoading || !data || !stats ? (
           <div className="app-loading">Carregando dados do CRM…</div>
         ) : detail ? (
           <CandidateDetail
