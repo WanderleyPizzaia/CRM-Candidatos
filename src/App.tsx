@@ -4,28 +4,53 @@ import { supabase } from "./lib/supabase";
 import {
   createCalendarItem,
   createCandidate,
+  createChecklistItem,
+  createProduction,
   createTeamMember,
+  deleteCalendarItem,
+  deleteChecklistItem,
+  deleteProduction,
   fetchAgencyMembership,
   fetchDashboardData,
   setCalendarItemCompleted,
   setChecklistItemCompleted,
   setTeamMemberActive,
   updateCandidate,
+  updateProduction,
+  type CandidateInput,
   type DashboardData,
+  type NewCalendarItemInput,
+  type NewChecklistItemInput,
+  type NewProductionInput,
+  type NewTeamMemberInput,
 } from "./lib/api";
 import type {
   AgencyMember,
   CalendarItem,
-  CalendarKind,
   Candidate,
   ChecklistItem,
-  DoubledCampaign,
-  Office,
   Production,
+  ProductionStatus,
   TeamMember,
-  TeamRole,
 } from "./lib/types";
+import {
+  ELECTION_DEADLINE,
+  colorFor,
+  daysUntil,
+  formatDate,
+  initialsOf,
+  roleLabels,
+  todayLabel,
+} from "./lib/format";
 import { Login } from "./components/Login";
+import { CandidateForm } from "./components/CandidateForm";
+import { CandidateDetail } from "./components/CandidateDetail";
+import { CandidatesView } from "./components/CandidatesView";
+import { ChecklistItemForm, StrategyView } from "./components/StrategyView";
+import { AgendaView, CalendarItemForm } from "./components/AgendaView";
+import { CalendarView } from "./components/CalendarView";
+import { ProductionBoard, ProductionForm } from "./components/ProductionBoard";
+import { TeamMemberForm, TeamView } from "./components/TeamView";
 
 const nav = [
   ["Visão geral", "⌂"],
@@ -37,686 +62,11 @@ const nav = [
   ["Equipe", "♙"],
 ] as const;
 
-const avatarColors = ["coral", "blue", "gold"] as const;
-const roleLabels: Record<string, string> = {
-  admin: "Administrador",
-  designer: "Designer",
-  editor_filmmaker: "Editor/Filmmaker",
-};
-const teamRoles: TeamRole[] = ["admin", "designer", "editor_filmmaker"];
-const calendarKindLabels: Record<CalendarKind, string> = {
-  agenda: "Agenda",
-  content: "Conteúdo",
-  deadline: "Prazo",
-  recording: "Gravação",
-};
-const calendarKinds: CalendarKind[] = ["agenda", "content", "deadline", "recording"];
-
-const ELECTION_DEADLINE = new Date("2026-09-30T23:59:59-03:00");
-
-function initialsOf(name: string) {
-  const initials = name
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  return initials || "NC";
-}
-
-function colorFor(index: number) {
-  return avatarColors[index % avatarColors.length];
-}
-
-function formatCurrency(value: number | null) {
-  if (value === null) return "Não informado";
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function parseCurrencyInput(value: string): number | null {
-  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function daysUntil(date: Date) {
-  const diffMs = date.getTime() - Date.now();
-  return Math.max(0, Math.ceil(diffMs / 86_400_000));
-}
-
-function todayLabel() {
-  const label = new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
-  return label.toUpperCase();
-}
-
-function Field({
-  label,
-  name,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (name: string, value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input value={value} onChange={(e) => onChange(name, e.target.value)} placeholder={placeholder} />
-    </label>
-  );
-}
-
-type NewCandidateFormState = {
-  name: string;
-  electoral_number: string;
-  office: Office;
-  investment_amount: string;
-  investment_source: string;
-  city: string;
-  regions: string;
-  vote_projection: string;
-  candidate_team: string;
-  drive_folder_url: string;
-};
-
-const emptyCandidateForm: NewCandidateFormState = {
-  name: "",
-  electoral_number: "",
-  office: "Deputado Estadual",
-  investment_amount: "",
-  investment_source: "",
-  city: "",
-  regions: "",
-  vote_projection: "",
-  candidate_team: "",
-  drive_folder_url: "",
-};
-
-function candidateToFormState(candidate: Candidate): NewCandidateFormState {
-  return {
-    name: candidate.name,
-    electoral_number: candidate.electoral_number ?? "",
-    office: candidate.office,
-    investment_amount: candidate.investment_amount !== null ? String(candidate.investment_amount) : "",
-    investment_source: candidate.investment_source ?? "",
-    city: candidate.city ?? "",
-    regions: candidate.regions ?? "",
-    vote_projection: candidate.vote_projection ?? "",
-    candidate_team: candidate.candidate_team ?? "",
-    drive_folder_url: candidate.drive_folder_url ?? "",
-  };
-}
-
-function CandidateForm({
-  editing,
-  onClose,
-  onSave,
-}: {
-  editing?: Candidate | null;
-  onClose: () => void;
-  onSave: (form: NewCandidateFormState) => Promise<void>;
-}) {
-  const [form, setForm] = useState(editing ? candidateToFormState(editing) : emptyCandidateForm);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
-
-  const save = async () => {
-    if (!form.name.trim()) {
-      setError("Informe o nome do candidato.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave(form);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar o candidato.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-head">
-          <div>
-            <span>{editing ? "EDIÇÃO" : "NOVO CADASTRO"}</span>
-            <h2>{editing ? "Editar candidato" : "Cadastrar candidato"}</h2>
-            <p>Preencha os dados operacionais da campanha.</p>
-          </div>
-          <button onClick={onClose}>×</button>
-        </div>
-        <div className="form-grid">
-          <Field label="Nome do candidato" name="name" value={form.name} onChange={change} placeholder="Nome completo" />
-          <Field
-            label="Número do candidato"
-            name="electoral_number"
-            value={form.electoral_number}
-            onChange={change}
-            placeholder="Ex.: 40123"
-          />
-          <label className="field">
-            <span>Cargo</span>
-            <select value={form.office} onChange={(e) => change("office", e.target.value)}>
-              <option>Deputado Estadual</option>
-              <option>Deputado Federal</option>
-            </select>
-          </label>
-          <Field
-            label="Valor investido"
-            name="investment_amount"
-            value={form.investment_amount}
-            onChange={change}
-            placeholder="R$ 0,00"
-          />
-          <Field
-            label="Origem do investimento"
-            name="investment_source"
-            value={form.investment_source}
-            onChange={change}
-            placeholder="Fundo partidário, próprio..."
-          />
-          <Field label="Cidade-base" name="city" value={form.city} onChange={change} placeholder="Cidade" />
-          <Field
-            label="Regiões de atuação"
-            name="regions"
-            value={form.regions}
-            onChange={change}
-            placeholder="Bairros, cidades ou regiões"
-          />
-          <Field
-            label="Projeção de votação"
-            name="vote_projection"
-            value={form.vote_projection}
-            onChange={change}
-            placeholder="Ex.: 42.000 votos"
-          />
-          <Field
-            label="Link da pasta do Drive"
-            name="drive_folder_url"
-            value={form.drive_folder_url}
-            onChange={change}
-            placeholder="https://drive.google.com/..."
-          />
-          <label className="field full">
-            <span>Membros da equipe do candidato</span>
-            <textarea
-              value={form.candidate_team}
-              onChange={(e) => change("candidate_team", e.target.value)}
-              placeholder="Nome e função, separados por vírgula"
-            />
-          </label>
-        </div>
-        {error && <p className="login-error">{error}</p>}
-        <div className="modal-actions">
-          <button className="secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className="primary" onClick={save} disabled={saving}>
-            {saving ? "Salvando…" : editing ? "Salvar alterações" : "Salvar candidato"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CandidateDetail({
-  candidate,
-  colorIndex,
-  checklist,
-  productions,
-  doubled,
-  onBack,
-  onEdit,
-  onToggleChecklist,
-}: {
-  candidate: Candidate;
-  colorIndex: number;
-  checklist: ChecklistItem[];
-  productions: Production[];
-  doubled: DoubledCampaign[];
-  onBack: () => void;
-  onEdit: () => void;
-  onToggleChecklist: (item: ChecklistItem) => void;
-}) {
-  return (
-    <section className="detail-view">
-      <button className="back" onClick={onBack}>
-        ← Voltar para candidatos
-      </button>
-      <div className="detail-hero">
-        <div className={`candidate-avatar ${colorFor(colorIndex)}`}>{initialsOf(candidate.name)}</div>
-        <div>
-          <span>FICHA DO CANDIDATO</span>
-          <h2>{candidate.name}</h2>
-          <p>
-            {candidate.office} · número {candidate.electoral_number ?? "—"} · {candidate.city ?? "—"}
-          </p>
-        </div>
-        <button className="primary" onClick={onEdit}>
-          Editar ficha
-        </button>
-      </div>
-      <div className="detail-grid">
-        <article className="panel detail-card">
-          <span>DADOS DA CAMPANHA</span>
-          <h3>Operação e investimento</h3>
-          <dl>
-            <div>
-              <dt>Valor investido</dt>
-              <dd>{formatCurrency(candidate.investment_amount)}</dd>
-            </div>
-            <div>
-              <dt>Origem</dt>
-              <dd>{candidate.investment_source ?? "Não informado"}</dd>
-            </div>
-            <div>
-              <dt>Projeção</dt>
-              <dd>{candidate.vote_projection ?? "Não informado"}</dd>
-            </div>
-            <div>
-              <dt>Regiões</dt>
-              <dd>{candidate.regions ?? "Não informado"}</dd>
-            </div>
-          </dl>
-        </article>
-        <article className="panel detail-card">
-          <span>ARQUIVOS</span>
-          <h3>Pasta do Google Drive</h3>
-          {candidate.drive_folder_url ? (
-            <a className="primary small drive-link" href={candidate.drive_folder_url} target="_blank" rel="noreferrer">
-              Abrir pasta no Drive ↗
-            </a>
-          ) : (
-            <p className="empty">
-              Nenhuma pasta vinculada ainda. Clique em "Editar ficha" para colar o link da pasta do Drive.
-            </p>
-          )}
-        </article>
-        <article className="panel detail-card">
-          <span>EQUIPE</span>
-          <h3>Membros vinculados</h3>
-          <p className="team-copy">{candidate.candidate_team || "Nenhum membro informado ainda."}</p>
-        </article>
-        <article className="panel detail-card full-card">
-          <div className="panel-title">
-            <div>
-              <span>CHECKLIST</span>
-              <h3>Documentos e estratégia</h3>
-            </div>
-          </div>
-          {checklist.length ? (
-            checklist.map((item) => (
-              <label key={item.id} className="checklist-row">
-                <input
-                  type="checkbox"
-                  checked={item.completed}
-                  onChange={() => onToggleChecklist(item)}
-                />
-                <span>{item.title}</span>
-                <small>{item.completed ? "Concluído" : item.due_date ? `Prazo ${item.due_date}` : "Pendente"}</small>
-              </label>
-            ))
-          ) : (
-            <p className="empty">Nenhum item de checklist cadastrado.</p>
-          )}
-        </article>
-        <article className="panel detail-card full-card">
-          <div className="panel-title">
-            <div>
-              <span>PRODUÇÃO</span>
-              <h3>Peças em andamento</h3>
-            </div>
-          </div>
-          {productions.length ? (
-            productions.map((p) => (
-              <div className="doubled" key={p.id}>
-                <b>{p.title}</b>
-                <span>
-                  {p.format} · {p.status}
-                </span>
-              </div>
-            ))
-          ) : (
-            <p className="empty">Nenhuma produção cadastrada.</p>
-          )}
-        </article>
-        <article className="panel detail-card full-card">
-          <div className="panel-title">
-            <div>
-              <span>DOBRADAS</span>
-              <h3>Parcerias e candidaturas vinculadas</h3>
-            </div>
-          </div>
-          {doubled.length ? (
-            doubled.map((d) => (
-              <div className="doubled" key={d.id}>
-                <b>{d.title}</b>
-                <span>Estratégia vinculada · Drive</span>
-              </div>
-            ))
-          ) : (
-            <p className="empty">Nenhuma dobrada cadastrada.</p>
-          )}
-        </article>
-      </div>
-    </section>
-  );
-}
-
-type NewCalendarFormState = {
-  candidate_id: string;
-  title: string;
-  kind: CalendarKind;
-  starts_at: string;
-  due_at: string;
-  assignee_id: string;
-};
-
-function CalendarItemForm({
-  candidates,
-  teamMembers,
-  onClose,
-  onSave,
-}: {
-  candidates: Candidate[];
-  teamMembers: TeamMember[];
-  onClose: () => void;
-  onSave: (form: NewCalendarFormState) => Promise<void>;
-}) {
-  const [form, setForm] = useState<NewCalendarFormState>({
-    candidate_id: candidates[0] ? String(candidates[0].id) : "",
-    title: "",
-    kind: "agenda",
-    starts_at: "",
-    due_at: "",
-    assignee_id: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
-
-  const save = async () => {
-    if (!form.candidate_id) {
-      setError("Selecione um candidato.");
-      return;
-    }
-    if (!form.title.trim()) {
-      setError("Informe um título para o evento.");
-      return;
-    }
-    if (!form.starts_at) {
-      setError("Informe data e hora do evento.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave(form);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar o evento.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-head">
-          <div>
-            <span>NOVO EVENTO</span>
-            <h2>Adicionar à agenda</h2>
-            <p>Vincule o evento a um candidato e defina data e responsável.</p>
-          </div>
-          <button onClick={onClose}>×</button>
-        </div>
-        <div className="form-grid">
-          <label className="field">
-            <span>Candidato</span>
-            <select value={form.candidate_id} onChange={(e) => change("candidate_id", e.target.value)}>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Tipo</span>
-            <select value={form.kind} onChange={(e) => change("kind", e.target.value)}>
-              {calendarKinds.map((kind) => (
-                <option key={kind} value={kind}>
-                  {calendarKindLabels[kind]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Field label="Título" name="title" value={form.title} onChange={change} placeholder="Ex.: Gravação — Saúde" />
-          <label className="field">
-            <span>Data e hora de início</span>
-            <input
-              type="datetime-local"
-              value={form.starts_at}
-              onChange={(e) => change("starts_at", e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>Prazo (opcional)</span>
-            <input type="datetime-local" value={form.due_at} onChange={(e) => change("due_at", e.target.value)} />
-          </label>
-          <label className="field">
-            <span>Responsável</span>
-            <select value={form.assignee_id} onChange={(e) => change("assignee_id", e.target.value)}>
-              <option value="">Sem responsável</option>
-              {teamMembers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {error && <p className="login-error">{error}</p>}
-        <div className="modal-actions">
-          <button className="secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className="primary" onClick={save} disabled={saving}>
-            {saving ? "Salvando…" : "Adicionar evento"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AgendaView({
-  items,
-  candidates,
-  onToggle,
-  onCreate,
-}: {
-  items: CalendarItem[];
-  candidates: Candidate[];
-  onToggle: (item: CalendarItem) => void;
-  onCreate: () => void;
-}) {
-  const sorted = [...items].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
-  return (
-    <div className="content">
-      <div className="view-head">
-        <h2>Agenda da equipe</h2>
-        <button className="primary" onClick={onCreate}>
-          ＋ Novo evento
-        </button>
-      </div>
-      <section className="panel list-panel">
-        {sorted.length ? (
-          sorted.map((item) => {
-            const start = new Date(item.starts_at);
-            const overdue = !item.completed && start < new Date();
-            const candidateName = candidates.find((c) => c.id === item.candidate_id)?.name ?? "—";
-            return (
-              <div className="list-row" key={item.id}>
-                <button className={`check ${item.completed ? "checked" : ""}`} onClick={() => onToggle(item)}>
-                  {item.completed ? "✓" : ""}
-                </button>
-                <div className="event-date">
-                  <strong>{start.getDate()}</strong>
-                  <span>{start.toLocaleDateString("pt-BR", { month: "short" }).toUpperCase()}</span>
-                </div>
-                <div className="grow">
-                  <b>{item.title}</b>
-                  <span>
-                    {calendarKindLabels[item.kind]} · {candidateName} ·{" "}
-                    {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </div>
-                {overdue && <em>ATRASADO</em>}
-              </div>
-            );
-          })
-        ) : (
-          <p className="empty">Nenhum evento cadastrado ainda.</p>
-        )}
-      </section>
-    </div>
-  );
-}
-
-type NewTeamMemberFormState = {
-  name: string;
-  email: string;
-  role: TeamRole;
-};
-
-function TeamMemberForm({
-  onClose,
-  onSave,
-}: {
-  onClose: () => void;
-  onSave: (form: NewTeamMemberFormState) => Promise<void>;
-}) {
-  const [form, setForm] = useState<NewTeamMemberFormState>({ name: "", email: "", role: "designer" });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }));
-
-  const save = async () => {
-    if (!form.name.trim() || !form.email.trim()) {
-      setError("Informe nome e e-mail.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await onSave(form);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível adicionar o membro.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <div className="modal-head">
-          <div>
-            <span>NOVO MEMBRO</span>
-            <h2>Adicionar à equipe</h2>
-            <p>Cadastre um membro da agência.</p>
-          </div>
-          <button onClick={onClose}>×</button>
-        </div>
-        <div className="form-grid">
-          <Field label="Nome" name="name" value={form.name} onChange={change} placeholder="Nome completo" />
-          <Field
-            label="E-mail"
-            name="email"
-            value={form.email}
-            onChange={change}
-            placeholder="nome@agenciacriando.com.br"
-          />
-          <label className="field">
-            <span>Papel</span>
-            <select value={form.role} onChange={(e) => change("role", e.target.value)}>
-              {teamRoles.map((role) => (
-                <option key={role} value={role}>
-                  {roleLabels[role]}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {error && <p className="login-error">{error}</p>}
-        <div className="modal-actions">
-          <button className="secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className="primary" onClick={save} disabled={saving}>
-            {saving ? "Salvando…" : "Adicionar membro"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TeamView({
-  members,
-  onCreate,
-  onToggleActive,
-}: {
-  members: TeamMember[];
-  onCreate: () => void;
-  onToggleActive: (member: TeamMember) => void;
-}) {
-  return (
-    <div className="content">
-      <div className="view-head">
-        <h2>Equipe da agência</h2>
-        <button className="primary" onClick={onCreate}>
-          ＋ Adicionar membro
-        </button>
-      </div>
-      <section className="panel list-panel">
-        {members.length ? (
-          members.map((member, index) => (
-            <div className="list-row" key={member.id}>
-              <div className={`candidate-avatar ${colorFor(index)}`}>{initialsOf(member.name)}</div>
-              <div className="grow">
-                <b>{member.name}</b>
-                <span>
-                  {member.email} · {roleLabels[member.role] ?? member.role}
-                </span>
-              </div>
-              <span className={`pill ${member.active ? "" : "inactive"}`}>{member.active ? "Ativo" : "Inativo"}</span>
-              <button className="secondary small" onClick={() => onToggleActive(member)}>
-                {member.active ? "Desativar" : "Ativar"}
-              </button>
-            </div>
-          ))
-        ) : (
-          <p className="empty">Nenhum membro cadastrado ainda.</p>
-        )}
-      </section>
-    </div>
-  );
-}
+type Access =
+  | { status: "checking" }
+  | { status: "authorized"; member: AgencyMember }
+  | { status: "denied" }
+  | { status: "error"; message: string };
 
 function useSupabaseSession() {
   const [session, setSession] = useState<Session | null>(null);
@@ -746,12 +96,6 @@ function useSupabaseSession() {
   return { session, loading };
 }
 
-type Access =
-  | { status: "checking" }
-  | { status: "authorized"; member: AgencyMember }
-  | { status: "denied" }
-  | { status: "error"; message: string };
-
 export default function App() {
   const { session, loading: sessionLoading } = useSupabaseSession();
   const [access, setAccess] = useState<Access>({ status: "checking" });
@@ -761,12 +105,19 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
-  const [active, setActive] = useState("Visão geral");
-  const [showForm, setShowForm] = useState(false);
-  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  const [active, setActive] = useState<string>("Visão geral");
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const [candidateForm, setCandidateForm] = useState<{ open: boolean; editing: Candidate | null }>({
+    open: false,
+    editing: null,
+  });
+  const [showChecklistForm, setShowChecklistForm] = useState(false);
   const [showCalendarForm, setShowCalendarForm] = useState(false);
   const [showTeamForm, setShowTeamForm] = useState(false);
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const [productionForm, setProductionForm] = useState<{ open: boolean; editing: Production | null }>({
+    open: false,
+    editing: null,
+  });
 
   // A sessão é recriada a cada refresh de token; seguir o id evita recarregar tudo à toa.
   const userId = session?.user.id ?? null;
@@ -825,10 +176,13 @@ export default function App() {
 
   const stats = useMemo(() => {
     if (!data) return null;
+    const now = new Date();
     const activeCandidates = data.candidates.filter((c) => c.status === "active").length;
-    const inProduction = data.productions.filter((p) => p.status !== "published").length;
+    const inProduction = data.productions.filter(
+      (p) => p.status !== "published" && p.status !== "approved",
+    ).length;
     const overdueProductions = data.productions.filter(
-      (p) => p.due_at && new Date(p.due_at) < new Date() && !["approved", "published"].includes(p.status),
+      (p) => p.due_at && new Date(p.due_at) < now && p.status !== "approved" && p.status !== "published",
     ).length;
     const inApproval = data.productions.filter((p) => p.status === "approval").length;
     const checklistDone = data.checklistItems.filter((c) => c.completed).length;
@@ -837,10 +191,11 @@ export default function App() {
     const docLike = data.checklistItems.filter(
       (c) => c.category === "document" || c.category === "electoral_requirement",
     );
-    const docDone = docLike.filter((c) => c.completed).length;
-    const pendingRequirements = docLike.filter((c) => c.category === "electoral_requirement" && !c.completed).length;
+    const pendingRequirements = docLike.filter(
+      (c) => c.category === "electoral_requirement" && !c.completed,
+    ).length;
     const overdueCalendar = data.calendarItems.filter(
-      (item) => !item.completed && new Date(item.starts_at) < new Date(),
+      (item) => !item.completed && new Date(item.starts_at) < now,
     ).length;
     return {
       activeCandidates,
@@ -848,7 +203,7 @@ export default function App() {
       overdueProductions,
       inApproval,
       checklistPercent,
-      docDone,
+      docDone: docLike.filter((c) => c.completed).length,
       docTotal: docLike.length,
       pendingRequirements,
       criticalPending: overdueProductions + overdueCalendar,
@@ -870,54 +225,152 @@ export default function App() {
       .slice(0, 4);
   }, [data]);
 
-  const candidateInputFromForm = (form: NewCandidateFormState) => ({
-    name: form.name.trim(),
-    electoral_number: form.electoral_number.trim() || null,
-    office: form.office,
-    investment_amount: parseCurrencyInput(form.investment_amount),
-    investment_source: form.investment_source.trim() || null,
-    city: form.city.trim() || null,
-    regions: form.regions.trim() || null,
-    vote_projection: form.vote_projection.trim() || null,
-    candidate_team: form.candidate_team.trim() || null,
-    drive_folder_url: form.drive_folder_url.trim() || null,
-  });
+  const reportError = (err: unknown, fallback: string) =>
+    setError(err instanceof Error ? err.message : fallback);
 
-  const handleCreateCandidate = async (form: NewCandidateFormState) => {
-    const created = await createCandidate(candidateInputFromForm(form));
-    setData((prev) => (prev ? { ...prev, candidates: [...prev.candidates, created] } : prev));
-    setShowForm(false);
+  /* ------------------------------------------------------------- candidatos */
+
+  const handleSaveCandidate = async (input: CandidateInput) => {
+    if (candidateForm.editing) {
+      const updated = await updateCandidate(candidateForm.editing.id, input);
+      setData((prev) =>
+        prev ? { ...prev, candidates: prev.candidates.map((c) => (c.id === updated.id ? updated : c)) } : prev,
+      );
+    } else {
+      const created = await createCandidate(input);
+      setData((prev) => (prev ? { ...prev, candidates: [...prev.candidates, created] } : prev));
+    }
+    setCandidateForm({ open: false, editing: null });
   };
 
-  const handleUpdateCandidate = async (form: NewCandidateFormState) => {
-    if (!editingCandidate) return;
-    const updated = await updateCandidate(editingCandidate.id, candidateInputFromForm(form));
+  /* -------------------------------------------------------------- checklist */
+
+  const handleCreateChecklistItem = async (input: NewChecklistItemInput) => {
+    const created = await createChecklistItem(input);
+    setData((prev) => (prev ? { ...prev, checklistItems: [...prev.checklistItems, created] } : prev));
+    setShowChecklistForm(false);
+  };
+
+  const handleToggleChecklist = async (item: ChecklistItem) => {
+    const completed = !item.completed;
     setData((prev) =>
-      prev ? { ...prev, candidates: prev.candidates.map((c) => (c.id === updated.id ? updated : c)) } : prev,
+      prev
+        ? {
+            ...prev,
+            checklistItems: prev.checklistItems.map((c) => (c.id === item.id ? { ...c, completed } : c)),
+          }
+        : prev,
     );
-    setEditingCandidate(null);
+    try {
+      await setChecklistItemCompleted(item.id, completed);
+    } catch (err) {
+      reportError(err, "Erro ao atualizar checklist.");
+    }
   };
 
-  const handleCreateCalendarEvent = async (form: NewCalendarFormState) => {
-    const created = await createCalendarItem({
-      candidate_id: Number(form.candidate_id),
-      title: form.title.trim(),
-      kind: form.kind,
-      starts_at: new Date(form.starts_at).toISOString(),
-      due_at: form.due_at ? new Date(form.due_at).toISOString() : null,
-      assignee_id: form.assignee_id ? Number(form.assignee_id) : null,
-    });
+  const handleDeleteChecklistItem = async (item: ChecklistItem) => {
+    if (!window.confirm(`Excluir "${item.title}" do checklist?`)) return;
+    const previous = data;
+    setData((prev) =>
+      prev ? { ...prev, checklistItems: prev.checklistItems.filter((c) => c.id !== item.id) } : prev,
+    );
+    try {
+      await deleteChecklistItem(item.id);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao excluir item.");
+    }
+  };
+
+  /* ----------------------------------------------------------------- agenda */
+
+  const handleCreateCalendarItem = async (input: NewCalendarItemInput) => {
+    const created = await createCalendarItem(input);
     setData((prev) => (prev ? { ...prev, calendarItems: [...prev.calendarItems, created] } : prev));
     setShowCalendarForm(false);
   };
 
-  const handleCreateTeamMember = async (form: NewTeamMemberFormState) => {
-    const created = await createTeamMember({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      role: form.role,
-      active: true,
-    });
+  const handleToggleCalendar = async (item: CalendarItem) => {
+    const completed = !item.completed;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            calendarItems: prev.calendarItems.map((c) => (c.id === item.id ? { ...c, completed } : c)),
+          }
+        : prev,
+    );
+    try {
+      await setCalendarItemCompleted(item.id, completed);
+    } catch (err) {
+      reportError(err, "Erro ao atualizar agenda.");
+    }
+  };
+
+  const handleDeleteCalendarItem = async (item: CalendarItem) => {
+    if (!window.confirm(`Excluir o evento "${item.title}"?`)) return;
+    const previous = data;
+    setData((prev) =>
+      prev ? { ...prev, calendarItems: prev.calendarItems.filter((c) => c.id !== item.id) } : prev,
+    );
+    try {
+      await deleteCalendarItem(item.id);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao excluir evento.");
+    }
+  };
+
+  /* --------------------------------------------------------------- produção */
+
+  const handleSaveProduction = async (input: NewProductionInput) => {
+    if (productionForm.editing) {
+      const updated = await updateProduction(productionForm.editing.id, input);
+      setData((prev) =>
+        prev
+          ? { ...prev, productions: prev.productions.map((p) => (p.id === updated.id ? updated : p)) }
+          : prev,
+      );
+    } else {
+      const created = await createProduction(input);
+      setData((prev) => (prev ? { ...prev, productions: [...prev.productions, created] } : prev));
+    }
+    setProductionForm({ open: false, editing: null });
+  };
+
+  const handleMoveProduction = async (production: Production, status: ProductionStatus) => {
+    const previous = data;
+    setData((prev) =>
+      prev
+        ? { ...prev, productions: prev.productions.map((p) => (p.id === production.id ? { ...p, status } : p)) }
+        : prev,
+    );
+    try {
+      await updateProduction(production.id, { status });
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao mover a peça.");
+    }
+  };
+
+  const handleDeleteProduction = async (production: Production) => {
+    if (!window.confirm(`Excluir a peça "${production.title}"?`)) return;
+    const previous = data;
+    setData((prev) =>
+      prev ? { ...prev, productions: prev.productions.filter((p) => p.id !== production.id) } : prev,
+    );
+    try {
+      await deleteProduction(production.id);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao excluir a peça.");
+    }
+  };
+
+  /* ----------------------------------------------------------------- equipe */
+
+  const handleCreateTeamMember = async (input: NewTeamMemberInput) => {
+    const created = await createTeamMember(input);
     setData((prev) => (prev ? { ...prev, teamMembers: [...prev.teamMembers, created] } : prev));
     setShowTeamForm(false);
   };
@@ -926,65 +379,24 @@ export default function App() {
     const nextActive = !member.active;
     setData((prev) =>
       prev
-        ? { ...prev, teamMembers: prev.teamMembers.map((m) => (m.id === member.id ? { ...m, active: nextActive } : m)) }
+        ? {
+            ...prev,
+            teamMembers: prev.teamMembers.map((m) => (m.id === member.id ? { ...m, active: nextActive } : m)),
+          }
         : prev,
     );
     try {
       await setTeamMemberActive(member.id, nextActive);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao atualizar membro da equipe.");
+      reportError(err, "Erro ao atualizar membro da equipe.");
     }
   };
 
-  const handleToggleChecklist = async (item: ChecklistItem) => {
-    const nextCompleted = !item.completed;
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            checklistItems: prev.checklistItems.map((c) =>
-              c.id === item.id ? { ...c, completed: nextCompleted } : c,
-            ),
-          }
-        : prev,
-    );
-    try {
-      await setChecklistItemCompleted(item.id, nextCompleted);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao atualizar checklist.");
-    }
-  };
+  /* ------------------------------------------------------------- roteamento */
 
-  const handleToggleCalendar = async (item: CalendarItem) => {
-    const nextCompleted = !item.completed;
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            calendarItems: prev.calendarItems.map((c) =>
-              c.id === item.id ? { ...c, completed: nextCompleted } : c,
-            ),
-          }
-        : prev,
-    );
-    try {
-      await setCalendarItemCompleted(item.id, nextCompleted);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao atualizar agenda.");
-    }
-  };
-
-  if (sessionLoading) {
-    return <div className="app-loading">Carregando…</div>;
-  }
-
-  if (!session) {
-    return <Login />;
-  }
-
-  if (access.status === "checking") {
-    return <div className="app-loading">Verificando acesso…</div>;
-  }
+  if (sessionLoading) return <div className="app-loading">Carregando…</div>;
+  if (!session) return <Login />;
+  if (access.status === "checking") return <div className="app-loading">Verificando acesso…</div>;
 
   if (access.status === "error") {
     return (
@@ -1019,102 +431,116 @@ export default function App() {
   }
 
   const daysRemaining = daysUntil(ELECTION_DEADLINE);
+  const openCandidate = (candidate: Candidate) => {
+    setDetailId(candidate.id);
+    setActive("Candidatos");
+  };
 
-  return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brandmark">A</div>
-          <div>
-            <b>Agência Criando</b>
-            <span>Gestão política</span>
-          </div>
-        </div>
-        <nav>
-          {nav.map(([label, icon]) => (
-            <button
-              key={label}
-              className={active === label ? "active" : ""}
-              onClick={() => {
-                setActive(label);
-                setDetailId(null);
-              }}
-            >
-              <i>{icon}</i>
-              {label}
-              {label === "Produção" && stats && <em>{stats.inProduction}</em>}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          <div className="avatar">{initialsOf(session.user.email ?? "?")}</div>
-          <div>
-            <b>{session.user.email}</b>
-            <span>{roleLabels[access.member.role] ?? access.member.role}</span>
-          </div>
-          <button onClick={() => supabase.auth.signOut()} title="Sair">
-            ···
+  const renderWorkspace = () => {
+    if (dataError) {
+      return (
+        <div className="access-denied">
+          <h1>Não foi possível carregar os dados</h1>
+          <p className="login-error">{dataError}</p>
+          <button className="primary" onClick={() => setRetryKey((k) => k + 1)}>
+            Tentar novamente
           </button>
         </div>
-      </aside>
-      <section className="workspace">
-        <header>
-          <div>
-            <p>{todayLabel()}</p>
-            <h1>{detail ? detail.name : active}</h1>
-          </div>
-          <div className="header-actions">
-            <button className="icon-btn">⌕</button>
-            <button className="icon-btn notify">♧</button>
-            <button className="primary" onClick={() => setShowForm(true)}>
-              ＋ Novo candidato
-            </button>
-          </div>
-        </header>
-        {error && <p className="banner-error">{error}</p>}
-        {dataError ? (
-          <div className="access-denied">
-            <h1>Não foi possível carregar os dados</h1>
-            <p className="login-error">{dataError}</p>
-            <button className="primary" onClick={() => setRetryKey((k) => k + 1)}>
-              Tentar novamente
-            </button>
-          </div>
-        ) : dataLoading || !data || !stats ? (
-          <div className="app-loading">Carregando dados do CRM…</div>
-        ) : detail ? (
-          <CandidateDetail
-            candidate={detail}
-            colorIndex={data.candidates.findIndex((c) => c.id === detail.id)}
-            checklist={data.checklistItems.filter((c) => c.candidate_id === detail.id)}
-            productions={data.productions.filter((p) => p.candidate_id === detail.id)}
-            doubled={data.doubledCampaigns.filter((d) => d.candidate_id === detail.id)}
-            onBack={() => setDetailId(null)}
-            onEdit={() => setEditingCandidate(detail)}
-            onToggleChecklist={handleToggleChecklist}
+      );
+    }
+    if (dataLoading || !data || !stats) {
+      return <div className="app-loading">Carregando dados do CRM…</div>;
+    }
+    if (detail) {
+      return (
+        <CandidateDetail
+          candidate={detail}
+          colorIndex={data.candidates.findIndex((c) => c.id === detail.id)}
+          checklist={data.checklistItems.filter((c) => c.candidate_id === detail.id)}
+          calendarItems={data.calendarItems.filter((c) => c.candidate_id === detail.id)}
+          productions={data.productions.filter((p) => p.candidate_id === detail.id)}
+          doubled={data.doubledCampaigns.filter((d) => d.candidate_id === detail.id)}
+          teamMembers={data.teamMembers}
+          onBack={() => setDetailId(null)}
+          onEdit={() => setCandidateForm({ open: true, editing: detail })}
+          onToggleChecklist={handleToggleChecklist}
+        />
+      );
+    }
+
+    switch (active) {
+      case "Candidatos":
+        return (
+          <CandidatesView
+            candidates={data.candidates}
+            checklistItems={data.checklistItems}
+            onOpen={openCandidate}
+            onEdit={(candidate) => setCandidateForm({ open: true, editing: candidate })}
+            onCreate={() => setCandidateForm({ open: true, editing: null })}
           />
-        ) : active === "Agenda" ? (
+        );
+      case "Estratégia":
+        return (
+          <StrategyView
+            candidates={data.candidates}
+            items={data.checklistItems}
+            onToggle={handleToggleChecklist}
+            onDelete={handleDeleteChecklistItem}
+            onCreate={() => setShowChecklistForm(true)}
+          />
+        );
+      case "Agenda":
+        return (
           <AgendaView
             items={data.calendarItems}
             candidates={data.candidates}
+            teamMembers={data.teamMembers}
             onToggle={handleToggleCalendar}
+            onDelete={handleDeleteCalendarItem}
             onCreate={() => setShowCalendarForm(true)}
           />
-        ) : active === "Equipe" ? (
+        );
+      case "Calendário":
+        return (
+          <CalendarView
+            calendarItems={data.calendarItems}
+            productions={data.productions}
+            candidates={data.candidates}
+            teamMembers={data.teamMembers}
+            onCreate={() => setShowCalendarForm(true)}
+          />
+        );
+      case "Produção":
+        return (
+          <ProductionBoard
+            productions={data.productions}
+            candidates={data.candidates}
+            teamMembers={data.teamMembers}
+            onCreate={() => setProductionForm({ open: true, editing: null })}
+            onEdit={(production) => setProductionForm({ open: true, editing: production })}
+            onMove={handleMoveProduction}
+            onDelete={handleDeleteProduction}
+          />
+        );
+      case "Equipe":
+        return (
           <TeamView
             members={data.teamMembers}
+            productions={data.productions}
             onCreate={() => setShowTeamForm(true)}
             onToggleActive={handleToggleTeamMemberActive}
           />
-        ) : (
+        );
+      default:
+        return (
           <div className="content">
             <section className="welcome">
               <div>
                 <span>OPERAÇÃO {daysRemaining} DIAS</span>
                 <h2>Bom dia, Agência Criando.</h2>
                 <p>
-                  A campanha está em movimento. Há <b>{stats.criticalPending} pendências críticas</b> que precisam
-                  da sua atenção hoje.
+                  A campanha está em movimento. Há <b>{stats.criticalPending} pendências críticas</b> que
+                  precisam da sua atenção hoje.
                 </p>
               </div>
               <div className="countdown">
@@ -1123,6 +549,7 @@ export default function App() {
                 <small>até 30 de setembro</small>
               </div>
             </section>
+
             <div className="stats">
               <article>
                 <span>CANDIDATOS ATIVOS</span>
@@ -1153,6 +580,7 @@ export default function App() {
                 </small>
               </article>
             </div>
+
             <div className="grid-main">
               <section className="panel candidates">
                 <div className="panel-title">
@@ -1163,12 +591,9 @@ export default function App() {
                   <button onClick={() => setActive("Candidatos")}>Ver todos →</button>
                 </div>
                 {data.candidates.map((c, index) => {
-                  const candidateChecklist = data.checklistItems.filter((item) => item.candidate_id === c.id);
-                  const progress = candidateChecklist.length
-                    ? Math.round(
-                        (candidateChecklist.filter((item) => item.completed).length / candidateChecklist.length) *
-                          100,
-                      )
+                  const items = data.checklistItems.filter((item) => item.candidate_id === c.id);
+                  const progress = items.length
+                    ? Math.round((items.filter((item) => item.completed).length / items.length) * 100)
                     : 0;
                   return (
                     <article key={c.id} onClick={() => setDetailId(c.id)} className="candidate-row">
@@ -1190,21 +615,24 @@ export default function App() {
                         <strong>{daysRemaining}</strong>
                         <span>dias</span>
                       </div>
-                      <button className="more">•••</button>
                     </article>
                   );
                 })}
-                <button className="add-candidate" onClick={() => setShowForm(true)}>
+                <button
+                  className="add-candidate"
+                  onClick={() => setCandidateForm({ open: true, editing: null })}
+                >
                   ＋ Adicionar candidato
                 </button>
               </section>
+
               <section className="panel agenda">
                 <div className="panel-title">
                   <div>
                     <span>PRÓXIMOS DIAS</span>
                     <h3>Agenda da equipe</h3>
                   </div>
-                  <button onClick={() => setActive("Agenda")}>Calendário →</button>
+                  <button onClick={() => setActive("Agenda")}>Ver agenda →</button>
                 </div>
                 {upcomingCalendar.length ? (
                   upcomingCalendar.map((item) => {
@@ -1239,6 +667,7 @@ export default function App() {
                 )}
               </section>
             </div>
+
             <div className="grid-bottom">
               <section className="panel checklist">
                 <div className="panel-title">
@@ -1257,13 +686,14 @@ export default function App() {
                         onChange={() => handleToggleChecklist(item)}
                       />
                       <span>{item.title}</span>
-                      <small>{item.due_date ? `Prazo ${item.due_date}` : "Pendente"}</small>
+                      <small>{item.due_date ? formatDate(item.due_date) : "Pendente"}</small>
                     </label>
                   ))
                 ) : (
                   <p className="empty">Nenhum item pendente.</p>
                 )}
               </section>
+
               <section className="panel drive">
                 <div className="drive-icon">△</div>
                 <div>
@@ -1275,14 +705,82 @@ export default function App() {
               </section>
             </div>
           </div>
+        );
+    }
+  };
+
+  return (
+    <main className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brandmark">A</div>
+          <div>
+            <b>Agência Criando</b>
+            <span>Gestão política</span>
+          </div>
+        </div>
+        <nav>
+          {nav.map(([label, icon]) => (
+            <button
+              key={label}
+              className={active === label && !detail ? "active" : ""}
+              onClick={() => {
+                setActive(label);
+                setDetailId(null);
+              }}
+            >
+              <i>{icon}</i>
+              {label}
+              {label === "Produção" && stats && stats.inProduction > 0 && <em>{stats.inProduction}</em>}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          <div className="avatar">{initialsOf(session.user.email ?? "?")}</div>
+          <div>
+            <b>{session.user.email}</b>
+            <span>{roleLabels[access.member.role] ?? access.member.role}</span>
+          </div>
+          <button onClick={() => supabase.auth.signOut()} title="Sair">
+            ⏻
+          </button>
+        </div>
+      </aside>
+
+      <section className="workspace">
+        <header>
+          <div>
+            <p>{todayLabel()}</p>
+            <h1>{detail ? detail.name : active}</h1>
+          </div>
+          <div className="header-actions">
+            <button className="primary" onClick={() => setCandidateForm({ open: true, editing: null })}>
+              ＋ Novo candidato
+            </button>
+          </div>
+        </header>
+        {error && (
+          <p className="banner-error">
+            {error}
+            <button onClick={() => setError(null)}>×</button>
+          </p>
         )}
+        {renderWorkspace()}
       </section>
-      {showForm && <CandidateForm onClose={() => setShowForm(false)} onSave={handleCreateCandidate} />}
-      {editingCandidate && (
+
+      {candidateForm.open && (
         <CandidateForm
-          editing={editingCandidate}
-          onClose={() => setEditingCandidate(null)}
-          onSave={handleUpdateCandidate}
+          editing={candidateForm.editing}
+          onClose={() => setCandidateForm({ open: false, editing: null })}
+          onSave={handleSaveCandidate}
+        />
+      )}
+      {showChecklistForm && data && (
+        <ChecklistItemForm
+          candidates={data.candidates}
+          defaultCandidateId={detailId}
+          onClose={() => setShowChecklistForm(false)}
+          onSave={handleCreateChecklistItem}
         />
       )}
       {showCalendarForm && data && (
@@ -1290,7 +788,16 @@ export default function App() {
           candidates={data.candidates}
           teamMembers={data.teamMembers}
           onClose={() => setShowCalendarForm(false)}
-          onSave={handleCreateCalendarEvent}
+          onSave={handleCreateCalendarItem}
+        />
+      )}
+      {productionForm.open && data && (
+        <ProductionForm
+          candidates={data.candidates}
+          teamMembers={data.teamMembers}
+          editing={productionForm.editing}
+          onClose={() => setProductionForm({ open: false, editing: null })}
+          onSave={handleSaveProduction}
         />
       )}
       {showTeamForm && <TeamMemberForm onClose={() => setShowTeamForm(false)} onSave={handleCreateTeamMember} />}

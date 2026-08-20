@@ -4,10 +4,12 @@ import type {
   CalendarItem,
   CalendarKind,
   Candidate,
+  ChecklistCategory,
   ChecklistItem,
   DoubledCampaign,
   Office,
   Production,
+  ProductionStatus,
   TeamMember,
   TeamRole,
 } from "./types";
@@ -84,10 +86,13 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   };
 }
 
-export type NewCandidateInput = {
+/* ---------------------------------------------------------------- candidatos */
+
+export type CandidateInput = {
   name: string;
   electoral_number: string | null;
   office: Office;
+  party: string | null;
   investment_amount: number | null;
   investment_source: string | null;
   city: string | null;
@@ -97,14 +102,30 @@ export type NewCandidateInput = {
   drive_folder_url: string | null;
 };
 
-export async function createCandidate(input: NewCandidateInput): Promise<Candidate> {
+export async function createCandidate(input: CandidateInput): Promise<Candidate> {
   const { data, error } = await supabase.from("candidates").insert(input).select().single();
   if (error) throw error;
   return data;
 }
 
-export async function updateCandidate(id: number, input: NewCandidateInput): Promise<Candidate> {
+export async function updateCandidate(id: number, input: CandidateInput): Promise<Candidate> {
   const { data, error } = await supabase.from("candidates").update(input).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/* ----------------------------------------------------------------- checklist */
+
+export type NewChecklistItemInput = {
+  candidate_id: number;
+  category: ChecklistCategory;
+  title: string;
+  label: string | null;
+  due_date: string | null;
+};
+
+export async function createChecklistItem(input: NewChecklistItemInput): Promise<ChecklistItem> {
+  const { data, error } = await supabase.from("checklist_items").insert(input).select().single();
   if (error) throw error;
   return data;
 }
@@ -114,10 +135,12 @@ export async function setChecklistItemCompleted(id: number, completed: boolean) 
   if (error) throw error;
 }
 
-export async function setCalendarItemCompleted(id: number, completed: boolean) {
-  const { error } = await supabase.from("calendar_items").update({ completed }).eq("id", id);
+export async function deleteChecklistItem(id: number) {
+  const { error } = await supabase.from("checklist_items").delete().eq("id", id);
   if (error) throw error;
 }
+
+/* -------------------------------------------------------------------- agenda */
 
 export type NewCalendarItemInput = {
   candidate_id: number;
@@ -133,6 +156,51 @@ export async function createCalendarItem(input: NewCalendarItemInput): Promise<C
   if (error) throw error;
   return data;
 }
+
+export async function setCalendarItemCompleted(id: number, completed: boolean) {
+  const { error } = await supabase.from("calendar_items").update({ completed }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteCalendarItem(id: number) {
+  const { error } = await supabase.from("calendar_items").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* ------------------------------------------------------------------ produção */
+
+export type NewProductionInput = {
+  candidate_id: number;
+  title: string;
+  format: string;
+  status: ProductionStatus;
+  due_at: string | null;
+  drive_file_url: string | null;
+  notes: string | null;
+  assignee_id: number | null;
+};
+
+export async function createProduction(input: NewProductionInput): Promise<Production> {
+  const { data, error } = await supabase.from("productions").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateProduction(
+  id: number,
+  patch: Partial<NewProductionInput>,
+): Promise<Production> {
+  const { data, error } = await supabase.from("productions").update(patch).eq("id", id).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteProduction(id: number) {
+  const { error } = await supabase.from("productions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* ------------------------------------------------------------------- equipe */
 
 export type NewTeamMemberInput = {
   name: string;

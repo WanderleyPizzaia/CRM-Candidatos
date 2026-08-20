@@ -1,0 +1,504 @@
+/* ---------------------------------------------------- cabeçalho das telas */
+.view-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.view-head h2 {
+  font: 24px Georgia, serif;
+  margin: 0;
+}
+.view-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.filter-select {
+  height: 34px;
+  border: 1px solid #cfe4ef;
+  border-radius: 7px;
+  background: #fff;
+  color: #123f70;
+  font-size: 11px;
+  padding: 0 9px;
+}
+.toggle-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #45677d;
+}
+
+/* ------------------------------------------------------------ listas */
+.list-panel {
+  max-width: 1000px;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-top: 1px solid #eceeea;
+  padding: 12px 0;
+}
+.list-row:first-child {
+  border-top: 0;
+}
+.list-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+.list-row b {
+  display: block;
+  font-size: 12px;
+}
+.list-row .grow span {
+  display: block;
+  font-size: 10px;
+  color: #858d8a;
+  margin-top: 3px;
+}
+.list-row em {
+  font-style: normal;
+  font-size: 7px;
+  color: #bd433b;
+  background: #f4d8d5;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.done {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.row-delete {
+  border: 0;
+  background: transparent;
+  color: #a9b6bf;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.row-delete:hover {
+  background: #fbe9e7;
+  color: #c84b42;
+}
+.small-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 9px;
+  border-radius: 7px;
+}
+.member-load {
+  text-align: right;
+  min-width: 58px;
+}
+.member-load strong {
+  display: block;
+  font: 16px Georgia, serif;
+}
+.member-load span {
+  display: block;
+  font-size: 8px;
+  color: #8b918f;
+}
+.pill {
+  font-size: 9px;
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #e2f0d9;
+  color: #4a6b3c;
+  letter-spacing: 0.04em;
+}
+.pill.inactive {
+  background: #f4d8d5;
+  color: #a4453c;
+}
+
+/* ------------------------------------------------------- barra de progresso */
+.progress-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+  max-width: 1000px;
+}
+.progress-panel span {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  font-weight: bold;
+  color: #6e879b;
+}
+.progress-panel strong {
+  display: block;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.progress-panel .bar {
+  flex: 1;
+  height: 8px;
+}
+.progress-panel > b {
+  font: 20px Georgia, serif;
+}
+.progress-label {
+  display: block;
+  font-size: 9px;
+  color: #8b918f;
+  margin-top: 6px;
+}
+
+/* ------------------------------------------------------- cards de candidato */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+}
+.candidate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.candidate-card-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.candidate-card-head b {
+  display: block;
+  font-size: 13px;
+}
+.candidate-card-head span {
+  display: block;
+  font-size: 9px;
+  color: #858d8a;
+  margin-top: 3px;
+}
+.candidate-card-data {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 0;
+}
+.candidate-card-data dt {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #8096a5;
+  text-transform: uppercase;
+}
+.candidate-card-data dd {
+  font-size: 12px;
+  font-weight: bold;
+  color: #123f70;
+  margin: 3px 0 0;
+}
+.candidate-card-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.drive-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid #c8edf9;
+  background: #e5f4fb;
+  color: #124b7d;
+  font-size: 10px;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+}
+.drive-btn:hover {
+  background: #d3edf9;
+}
+.drive-btn.empty-drive {
+  border-style: dashed;
+  background: #fafcfe;
+  color: #6e879b;
+}
+.drive-url {
+  font-size: 9px;
+  color: #8096a5;
+  word-break: break-all;
+  margin: 8px 0 0;
+}
+
+/* --------------------------------------------------------------- calendário */
+.calendar-panel {
+  padding: 16px;
+}
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.calendar-nav b {
+  font: 17px Georgia, serif;
+  min-width: 170px;
+}
+.calendar-nav button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #dcebf4;
+  background: #fff;
+  border-radius: 7px;
+  color: #124b7d;
+  cursor: pointer;
+}
+.calendar-nav .today-btn {
+  width: auto;
+  padding: 0 12px;
+  font-size: 10px;
+  margin-left: auto;
+}
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.calendar-weekday {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8a918e;
+  font-weight: bold;
+  text-align: center;
+  padding-bottom: 4px;
+}
+.calendar-cell {
+  min-height: 92px;
+  border: 1px solid #eaf1f6;
+  border-radius: 7px;
+  padding: 5px;
+  background: #fdfefe;
+  overflow: hidden;
+}
+.calendar-cell.empty-cell {
+  background: transparent;
+  border-color: transparent;
+}
+.calendar-cell.today {
+  border-color: #2f9ed3;
+  background: #f2fafd;
+}
+.calendar-day {
+  font-size: 10px;
+  font-weight: bold;
+  color: #6e879b;
+}
+.calendar-entry {
+  margin-top: 4px;
+  padding: 4px 5px;
+  border-radius: 5px;
+  background: #e5f4fb;
+  border-left: 3px solid #2f9ed3;
+}
+.calendar-entry.producao {
+  background: #f3f7e8;
+  border-left-color: #8aa552;
+}
+.calendar-entry.done {
+  opacity: 0.5;
+}
+.calendar-entry b {
+  display: block;
+  font-size: 9px;
+  color: #123f70;
+  line-height: 1.3;
+}
+.calendar-entry span {
+  display: block;
+  font-size: 8px;
+  color: #71889a;
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------------------------ kanban */
+.board-hint {
+  font-size: 10px;
+  color: #8096a5;
+  margin: 0 0 12px;
+}
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(190px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.kanban-column {
+  background: #f2f6f9;
+  border: 1px solid #e4edf3;
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 180px;
+}
+.kanban-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 9px;
+}
+.kanban-head b {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #45677d;
+}
+.kanban-head span {
+  font-size: 9px;
+  font-weight: bold;
+  background: #fff;
+  border-radius: 20px;
+  padding: 2px 8px;
+  color: #6e879b;
+}
+.kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kanban-card {
+  background: #fff;
+  border: 1px solid #e2ebf1;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: grab;
+  box-shadow: 0 1px 2px #14385f0d;
+}
+.kanban-card.dragging {
+  opacity: 0.45;
+}
+.kanban-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 6px;
+}
+.kanban-card-head b {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #123f70;
+}
+.kanban-format {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6e879b;
+  background: #f0f5f8;
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin: 6px 0;
+}
+.kanban-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 9px;
+  color: #5b7387;
+}
+.kanban-line .muted {
+  color: #a2b1bc;
+  font-style: italic;
+}
+.chip-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 7px;
+  font-weight: bold;
+  font-style: normal;
+  flex: none;
+}
+.chip-avatar.assignee {
+  background: #d9e8a4;
+  color: #3f5220;
+}
+.kanban-due {
+  display: block;
+  font-size: 8px;
+  color: #7b92a0;
+  margin-top: 7px;
+}
+.kanban-due.late {
+  color: #c8584f;
+  font-weight: bold;
+}
+.kanban-notes {
+  font-size: 9px;
+  color: #7b8c99;
+  margin: 7px 0 0;
+  line-height: 1.4;
+}
+.kanban-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+}
+.kanban-card-actions select {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  font-size: 9px;
+  border: 1px solid #dcebf4;
+  border-radius: 5px;
+  background: #fbfdfe;
+  color: #123f70;
+}
+.kanban-card-actions button,
+.kanban-card-actions a {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 9px;
+  border: 1px solid #dcebf4;
+  border-radius: 5px;
+  background: #fff;
+  color: #1b76a8;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.kanban-empty {
+  font-size: 9px;
+  color: #a8b6c0;
+  text-align: center;
+  padding: 14px 0;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .kanban {
+    grid-template-columns: repeat(6, minmax(180px, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .calendar-cell {
+    min-height: 66px;
+  }
+  .calendar-entry span {
+    display: none;
+  }
+  .progress-panel {
+    flex-wrap: wrap;
+  }
+}
