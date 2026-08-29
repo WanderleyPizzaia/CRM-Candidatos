@@ -65,11 +65,13 @@ export function TeamView({
   productions,
   onCreate,
   onToggleActive,
+  onDelete,
 }: {
   members: TeamMember[];
   productions: Production[];
   onCreate: () => void;
   onToggleActive: (member: TeamMember) => void;
+  onDelete: (member: TeamMember) => void;
 }) {
   return (
     <div className="content">
@@ -97,6 +99,9 @@ export function TeamView({
                 </span>
                 <button className="secondary small" onClick={() => onToggleActive(member)}>
                   {member.active ? "Desativar" : "Ativar"}
+                </button>
+                <button className="danger small" onClick={() => onDelete(member)} title="Excluir membro">
+                  Excluir
                 </button>
               </div>
             );

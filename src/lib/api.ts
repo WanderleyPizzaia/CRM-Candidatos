@@ -235,3 +235,12 @@ export async function setTeamMemberActive(id: number, active: boolean) {
   const { error } = await supabase.from("team_members").update({ active }).eq("id", id);
   if (error) throw error;
 }
+
+/**
+ * Peças e eventos atribuídos a esta pessoa não são apagados: o banco apenas
+ * zera o responsável (`on delete set null`).
+ */
+export async function deleteTeamMember(id: number) {
+  const { error } = await supabase.from("team_members").delete().eq("id", id);
+  if (error) throw error;
+}

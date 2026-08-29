@@ -11,6 +11,7 @@ import {
   deleteCandidate,
   deleteChecklistItem,
   deleteProduction,
+  deleteTeamMember,
   fetchAgencyMembership,
   fetchDashboardData,
   setCalendarItemCompleted,
@@ -464,6 +465,46 @@ export default function App() {
     }
   };
 
+  const handleDeleteTeamMember = async (member: TeamMember) => {
+    if (!data) return;
+    const assignedProductions = data.productions.filter((p) => p.assignee_id === member.id).length;
+    const assignedEvents = data.calendarItems.filter((c) => c.assignee_id === member.id).length;
+    // O banco zera o responsável em vez de apagar o trabalho.
+    const unassigned =
+      assignedProductions + assignedEvents > 0
+        ? `\n\n${assignedProductions} peça(s) e ${assignedEvents} evento(s) ficarão sem responsável — o trabalho em si não é apagado.`
+        : "";
+    const confirmed = window.confirm(
+      `Excluir "${member.name}" da equipe?${unassigned}` +
+        `\n\nSe a intenção é só tirar do dia a dia mantendo o histórico, use "Desativar".` +
+        `\n\nEssa ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    const previous = data;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            teamMembers: prev.teamMembers.filter((m) => m.id !== member.id),
+            productions: prev.productions.map((p) =>
+              p.assignee_id === member.id ? { ...p, assignee_id: null } : p,
+            ),
+            calendarItems: prev.calendarItems.map((c) =>
+              c.assignee_id === member.id ? { ...c, assignee_id: null } : c,
+            ),
+          }
+        : prev,
+    );
+
+    try {
+      await deleteTeamMember(member.id);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao excluir o membro da equipe.");
+    }
+  };
+
   /* ------------------------------------------------------------- roteamento */
 
   if (sessionLoading) return <div className="app-loading">Carregando…</div>;
@@ -603,6 +644,7 @@ export default function App() {
             productions={data.productions}
             onCreate={() => setShowTeamForm(true)}
             onToggleActive={handleToggleTeamMemberActive}
+            onDelete={handleDeleteTeamMember}
           />
         );
       default:
