@@ -114,6 +114,15 @@ export async function updateCandidate(id: number, input: CandidateInput): Promis
   return data;
 }
 
+/**
+ * O banco apaga em cascata: checklist, agenda, produções e dobradas do
+ * candidato somem junto. Confirme com o usuário antes de chamar.
+ */
+export async function deleteCandidate(id: number) {
+  const { error } = await supabase.from("candidates").delete().eq("id", id);
+  if (error) throw error;
+}
+
 /* ----------------------------------------------------------------- checklist */
 
 export type NewChecklistItemInput = {

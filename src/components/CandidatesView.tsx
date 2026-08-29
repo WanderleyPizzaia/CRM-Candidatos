@@ -8,12 +8,14 @@ export function CandidatesView({
   onOpen,
   onEdit,
   onCreate,
+  onDelete,
 }: {
   candidates: Candidate[];
   checklistItems: ChecklistItem[];
   onOpen: (candidate: Candidate) => void;
   onEdit: (candidate: Candidate) => void;
   onCreate: () => void;
+  onDelete: (candidate: Candidate) => void;
 }) {
   return (
     <div className="content">
@@ -70,6 +72,13 @@ export function CandidatesView({
                   </button>
                   <button className="secondary small" onClick={() => onOpen(candidate)}>
                     Abrir ficha
+                  </button>
+                  <button
+                    className="danger small"
+                    onClick={() => onDelete(candidate)}
+                    title="Excluir candidato"
+                  >
+                    Excluir
                   </button>
                 </div>
               </article>

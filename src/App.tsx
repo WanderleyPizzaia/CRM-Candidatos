@@ -8,6 +8,7 @@ import {
   createProduction,
   createTeamMember,
   deleteCalendarItem,
+  deleteCandidate,
   deleteChecklistItem,
   deleteProduction,
   fetchAgencyMembership,
@@ -241,6 +242,51 @@ export default function App() {
       setData((prev) => (prev ? { ...prev, candidates: [...prev.candidates, created] } : prev));
     }
     setCandidateForm({ open: false, editing: null });
+  };
+
+  const handleDeleteCandidate = async (candidate: Candidate) => {
+    if (!data) return;
+    const belongsTo = (id: number) => id === candidate.id;
+    const counts = {
+      checklist: data.checklistItems.filter((c) => belongsTo(c.candidate_id)).length,
+      calendar: data.calendarItems.filter((c) => belongsTo(c.candidate_id)).length,
+      productions: data.productions.filter((p) => belongsTo(p.candidate_id)).length,
+      doubled: data.doubledCampaigns.filter((d) => belongsTo(d.candidate_id)).length,
+    };
+    // O banco apaga em cascata, então o usuário precisa ver o que vai junto.
+    const cascade = Object.values(counts).some((n) => n > 0)
+      ? "\n\nIsto apaga junto, em definitivo:" +
+        `\n· ${counts.checklist} item(ns) de checklist` +
+        `\n· ${counts.calendar} evento(s) de agenda` +
+        `\n· ${counts.productions} peça(s) de produção` +
+        `\n· ${counts.doubled} dobrada(s)`
+      : "";
+    const confirmed = window.confirm(
+      `Excluir "${candidate.name}" do CRM?${cascade}\n\nEssa ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    const previous = data;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            candidates: prev.candidates.filter((c) => c.id !== candidate.id),
+            checklistItems: prev.checklistItems.filter((c) => !belongsTo(c.candidate_id)),
+            calendarItems: prev.calendarItems.filter((c) => !belongsTo(c.candidate_id)),
+            productions: prev.productions.filter((p) => !belongsTo(p.candidate_id)),
+            doubledCampaigns: prev.doubledCampaigns.filter((d) => !belongsTo(d.candidate_id)),
+          }
+        : prev,
+    );
+    if (detailId === candidate.id) setDetailId(null);
+
+    try {
+      await deleteCandidate(candidate.id);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao excluir o candidato.");
+    }
   };
 
   /* -------------------------------------------------------------- checklist */
@@ -477,6 +523,7 @@ export default function App() {
             onOpen={openCandidate}
             onEdit={(candidate) => setCandidateForm({ open: true, editing: candidate })}
             onCreate={() => setCandidateForm({ open: true, editing: null })}
+            onDelete={handleDeleteCandidate}
           />
         );
       case "Estratégia":

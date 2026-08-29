@@ -234,6 +234,26 @@
   word-break: break-all;
   margin: 8px 0 0;
 }
+.danger {
+  border: 1px solid #f0cdc9;
+  background: #fff;
+  color: #c04a40;
+  border-radius: 7px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.danger:hover {
+  background: #fbe9e7;
+  border-color: #e0aaa3;
+}
+.danger.small {
+  height: 32px;
+  font-size: 10px;
+}
+/* Excluir fica afastado das ações do dia a dia, para não ser clicado sem querer. */
+.candidate-card-actions .danger {
+  margin-left: auto;
+}
 
 /* --------------------------------------------------------------- calendário */
 .calendar-panel {
