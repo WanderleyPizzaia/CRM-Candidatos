@@ -6,6 +6,7 @@ import type {
   Candidate,
   ChecklistCategory,
   ChecklistItem,
+  ChecklistPriority,
   DoubledCampaign,
   Office,
   Production,
@@ -131,6 +132,7 @@ export type NewChecklistItemInput = {
   title: string;
   label: string | null;
   due_date: string | null;
+  priority: ChecklistPriority;
 };
 
 export async function createChecklistItem(input: NewChecklistItemInput): Promise<ChecklistItem> {
@@ -141,6 +143,11 @@ export async function createChecklistItem(input: NewChecklistItemInput): Promise
 
 export async function setChecklistItemCompleted(id: number, completed: boolean) {
   const { error } = await supabase.from("checklist_items").update({ completed }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setChecklistItemPriority(id: number, priority: ChecklistPriority) {
+  const { error } = await supabase.from("checklist_items").update({ priority }).eq("id", id);
   if (error) throw error;
 }
 

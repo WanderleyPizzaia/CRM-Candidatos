@@ -1,4 +1,10 @@
-import type { CalendarKind, ChecklistCategory, ProductionStatus, TeamRole } from "./types";
+import type {
+  CalendarKind,
+  ChecklistCategory,
+  ChecklistPriority,
+  ProductionStatus,
+  TeamRole,
+} from "./types";
 
 export const ELECTION_DEADLINE = new Date("2026-09-30T23:59:59-03:00");
 
@@ -29,6 +35,19 @@ export const checklistCategories: ChecklistCategory[] = [
   "document",
   "electoral_requirement",
 ];
+
+export const checklistPriorityLabels: Record<ChecklistPriority, string> = {
+  alta: "Alta",
+  media: "Média",
+  baixa: "Baixa",
+};
+/** Da mais urgente para a menos — é esta a ordem em que o checklist é exibido. */
+export const checklistPriorities: ChecklistPriority[] = ["alta", "media", "baixa"];
+
+export function priorityRank(priority: ChecklistPriority) {
+  const rank = checklistPriorities.indexOf(priority);
+  return rank === -1 ? checklistPriorities.length : rank;
+}
 
 export const productionStatusLabels: Record<ProductionStatus, string> = {
   briefing: "Briefing",

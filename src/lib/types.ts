@@ -1,6 +1,7 @@
 export type Office = "Deputado Federal" | "Deputado Estadual";
 export type CandidateStatus = "active" | "paused" | "closed";
 export type ChecklistCategory = "document" | "electoral_requirement" | "strategy";
+export type ChecklistPriority = "alta" | "media" | "baixa";
 export type CalendarKind = "agenda" | "content" | "deadline" | "recording";
 export type ProductionStatus =
   | "briefing"
@@ -38,6 +39,7 @@ export type ChecklistItem = {
   label: string | null;
   due_date: string | null;
   completed: boolean;
+  priority: ChecklistPriority;
   created_at: string;
 };
 

@@ -15,6 +15,7 @@ import {
   fetchDashboardData,
   setCalendarItemCompleted,
   setChecklistItemCompleted,
+  setChecklistItemPriority,
   setTeamMemberActive,
   updateCandidate,
   updateProduction,
@@ -30,16 +31,19 @@ import type {
   CalendarItem,
   Candidate,
   ChecklistItem,
+  ChecklistPriority,
   Production,
   ProductionStatus,
   TeamMember,
 } from "./lib/types";
 import {
   ELECTION_DEADLINE,
+  checklistPriorityLabels,
   colorFor,
   daysUntil,
   formatDate,
   initialsOf,
+  priorityRank,
   roleLabels,
   todayLabel,
 } from "./lib/format";
@@ -222,7 +226,11 @@ export default function App() {
     if (!data) return [];
     return data.checklistItems
       .filter((item) => !item.completed)
-      .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))
+      .sort((a, b) => {
+        const byPriority = priorityRank(a.priority) - priorityRank(b.priority);
+        if (byPriority !== 0) return byPriority;
+        return (a.due_date ?? "9999-99-99").localeCompare(b.due_date ?? "9999-99-99");
+      })
       .slice(0, 4);
   }, [data]);
 
@@ -311,6 +319,24 @@ export default function App() {
       await setChecklistItemCompleted(item.id, completed);
     } catch (err) {
       reportError(err, "Erro ao atualizar checklist.");
+    }
+  };
+
+  const handleChangeChecklistPriority = async (item: ChecklistItem, priority: ChecklistPriority) => {
+    const previous = data;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            checklistItems: prev.checklistItems.map((c) => (c.id === item.id ? { ...c, priority } : c)),
+          }
+        : prev,
+    );
+    try {
+      await setChecklistItemPriority(item.id, priority);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao mudar a prioridade.");
     }
   };
 
@@ -534,6 +560,7 @@ export default function App() {
             onToggle={handleToggleChecklist}
             onDelete={handleDeleteChecklistItem}
             onCreate={() => setShowChecklistForm(true)}
+            onChangePriority={handleChangeChecklistPriority}
           />
         );
       case "Agenda":
@@ -733,7 +760,10 @@ export default function App() {
                         onChange={() => handleToggleChecklist(item)}
                       />
                       <span>{item.title}</span>
-                      <small>{item.due_date ? formatDate(item.due_date) : "Pendente"}</small>
+                      <small className={`prio-tag prio-${item.priority}`}>
+                        {checklistPriorityLabels[item.priority]}
+                        {item.due_date ? ` · ${formatDate(item.due_date)}` : ""}
+                      </small>
                     </label>
                   ))
                 ) : (

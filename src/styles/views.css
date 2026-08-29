@@ -8,7 +8,7 @@
   margin-bottom: 16px;
 }
 .view-head h2 {
-  font: 24px Georgia, serif;
+  font: 26px Georgia, serif;
   margin: 0;
 }
 .view-head-actions {
@@ -23,14 +23,14 @@
   border-radius: 7px;
   background: #fff;
   color: #123f70;
-  font-size: 11px;
+  font-size: 13px;
   padding: 0 9px;
 }
 .toggle-filter {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 13px;
   color: #45677d;
 }
 
@@ -45,7 +45,10 @@
   border-top: 1px solid #eceeea;
   padding: 12px 0;
 }
-.list-row:first-child {
+/* Na Estratégia as linhas ficam dentro de agrupadores por prioridade, então o
+   ":first-child" precisa ser restrito aos filhos diretos do painel. */
+.list-panel > .list-row:first-child,
+.priority-heading + .list-row {
   border-top: 0;
 }
 .list-row .grow {
@@ -54,17 +57,17 @@
 }
 .list-row b {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
 }
 .list-row .grow span {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: #858d8a;
   margin-top: 3px;
 }
 .list-row em {
   font-style: normal;
-  font-size: 7px;
+  font-size: 9px;
   color: #bd433b;
   background: #f4d8d5;
   padding: 4px 6px;
@@ -78,7 +81,7 @@
   border: 0;
   background: transparent;
   color: #a9b6bf;
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   padding: 2px 6px;
   cursor: pointer;
@@ -91,7 +94,7 @@
 .small-avatar {
   width: 28px;
   height: 28px;
-  font-size: 9px;
+  font-size: 11px;
   border-radius: 7px;
 }
 .member-load {
@@ -100,15 +103,15 @@
 }
 .member-load strong {
   display: block;
-  font: 16px Georgia, serif;
+  font: 18px Georgia, serif;
 }
 .member-load span {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
   color: #8b918f;
 }
 .pill {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: bold;
   padding: 4px 10px;
   border-radius: 20px;
@@ -130,14 +133,14 @@
   max-width: 1000px;
 }
 .progress-panel span {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   font-weight: bold;
   color: #6e879b;
 }
 .progress-panel strong {
   display: block;
-  font-size: 13px;
+  font-size: 15px;
   margin-top: 4px;
 }
 .progress-panel .bar {
@@ -145,11 +148,11 @@
   height: 8px;
 }
 .progress-panel > b {
-  font: 20px Georgia, serif;
+  font: 22px Georgia, serif;
 }
 .progress-label {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: #8b918f;
   margin-top: 6px;
 }
@@ -172,11 +175,11 @@
 }
 .candidate-card-head b {
   display: block;
-  font-size: 13px;
+  font-size: 15px;
 }
 .candidate-card-head span {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: #858d8a;
   margin-top: 3px;
 }
@@ -187,13 +190,13 @@
   margin: 0;
 }
 .candidate-card-data dt {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   color: #8096a5;
   text-transform: uppercase;
 }
 .candidate-card-data dd {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
   color: #123f70;
   margin: 3px 0 0;
@@ -215,7 +218,7 @@
   border: 1px solid #c8edf9;
   background: #e5f4fb;
   color: #124b7d;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
   text-decoration: none;
   cursor: pointer;
@@ -229,7 +232,7 @@
   color: #6e879b;
 }
 .drive-url {
-  font-size: 9px;
+  font-size: 11px;
   color: #8096a5;
   word-break: break-all;
   margin: 8px 0 0;
@@ -248,11 +251,95 @@
 }
 .danger.small {
   height: 32px;
-  font-size: 10px;
+  font-size: 12px;
 }
 /* Excluir fica afastado das ações do dia a dia, para não ser clicado sem querer. */
 .candidate-card-actions .danger {
   margin-left: auto;
+}
+
+/* ------------------------------------------------------------- prioridades */
+.priority-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+  max-width: 1000px;
+}
+.priority-tile {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.priority-tile strong {
+  display: block;
+  font: 28px Georgia, serif;
+}
+.priority-tile span {
+  display: block;
+  font-size: 13px;
+  color: #78878f;
+  margin-top: 3px;
+}
+.priority-heading {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: bold;
+  margin: 18px 0 2px;
+  padding-left: 9px;
+  border-left: 3px solid transparent;
+}
+.list-panel > div:first-child .priority-heading {
+  margin-top: 0;
+}
+.prio-alta {
+  border-left-color: #c8584f;
+}
+.priority-heading.prio-alta {
+  color: #b8453c;
+}
+.prio-media {
+  border-left-color: #d0a53f;
+}
+.priority-heading.prio-media {
+  color: #9a7a22;
+}
+.prio-baixa {
+  border-left-color: #7ba0b4;
+}
+.priority-heading.prio-baixa {
+  color: #5b7f93;
+}
+.priority-select {
+  height: 30px;
+  border: 1px solid #dcebf4;
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: #fff;
+  color: #123f70;
+  font-size: 13px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.prio-tag {
+  font-weight: bold;
+}
+.prio-tag.prio-alta {
+  color: #b8453c;
+}
+.prio-tag.prio-media {
+  color: #9a7a22;
+}
+.prio-tag.prio-baixa {
+  color: #5b7f93;
+}
+@media (max-width: 700px) {
+  .priority-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* --------------------------------------------------------------- calendário */
@@ -266,7 +353,7 @@
   margin-bottom: 12px;
 }
 .calendar-nav b {
-  font: 17px Georgia, serif;
+  font: 19px Georgia, serif;
   min-width: 170px;
 }
 .calendar-nav button {
@@ -281,7 +368,7 @@
 .calendar-nav .today-btn {
   width: auto;
   padding: 0 12px;
-  font-size: 10px;
+  font-size: 12px;
   margin-left: auto;
 }
 .calendar-grid {
@@ -290,7 +377,7 @@
   gap: 4px;
 }
 .calendar-weekday {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #8a918e;
@@ -299,7 +386,7 @@
   padding-bottom: 4px;
 }
 .calendar-cell {
-  min-height: 92px;
+  min-height: 112px;
   border: 1px solid #eaf1f6;
   border-radius: 7px;
   padding: 5px;
@@ -315,7 +402,7 @@
   background: #f2fafd;
 }
 .calendar-day {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
   color: #6e879b;
 }
@@ -335,20 +422,20 @@
 }
 .calendar-entry b {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   color: #123f70;
   line-height: 1.3;
 }
 .calendar-entry span {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
   color: #71889a;
   margin-top: 2px;
 }
 
 /* ------------------------------------------------------------------ kanban */
 .board-hint {
-  font-size: 10px;
+  font-size: 12px;
   color: #8096a5;
   margin: 0 0 12px;
 }
@@ -373,13 +460,13 @@
   margin-bottom: 9px;
 }
 .kanban-head b {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #45677d;
 }
 .kanban-head span {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: bold;
   background: #fff;
   border-radius: 20px;
@@ -409,13 +496,13 @@
   gap: 6px;
 }
 .kanban-card-head b {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.35;
   color: #123f70;
 }
 .kanban-format {
   display: inline-block;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: bold;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -430,7 +517,7 @@
   align-items: center;
   gap: 6px;
   margin-top: 5px;
-  font-size: 9px;
+  font-size: 11px;
   color: #5b7387;
 }
 .kanban-line .muted {
@@ -443,7 +530,7 @@
   border-radius: 5px;
   display: grid;
   place-items: center;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: bold;
   font-style: normal;
   flex: none;
@@ -454,7 +541,7 @@
 }
 .kanban-due {
   display: block;
-  font-size: 8px;
+  font-size: 10px;
   color: #7b92a0;
   margin-top: 7px;
 }
@@ -463,7 +550,7 @@
   font-weight: bold;
 }
 .kanban-notes {
-  font-size: 9px;
+  font-size: 11px;
   color: #7b8c99;
   margin: 7px 0 0;
   line-height: 1.4;
@@ -478,7 +565,7 @@
   flex: 1;
   min-width: 0;
   height: 26px;
-  font-size: 9px;
+  font-size: 11px;
   border: 1px solid #dcebf4;
   border-radius: 5px;
   background: #fbfdfe;
@@ -488,7 +575,7 @@
 .kanban-card-actions a {
   height: 26px;
   padding: 0 8px;
-  font-size: 9px;
+  font-size: 11px;
   border: 1px solid #dcebf4;
   border-radius: 5px;
   background: #fff;
@@ -499,7 +586,7 @@
   cursor: pointer;
 }
 .kanban-empty {
-  font-size: 9px;
+  font-size: 11px;
   color: #a8b6c0;
   text-align: center;
   padding: 14px 0;

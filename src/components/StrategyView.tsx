@@ -1,12 +1,20 @@
 import { useState } from "react";
-import type { Candidate, ChecklistCategory, ChecklistItem } from "../lib/types";
+import type {
+  Candidate,
+  ChecklistCategory,
+  ChecklistItem,
+  ChecklistPriority,
+} from "../lib/types";
 import type { NewChecklistItemInput } from "../lib/api";
 import {
   checklistCategories,
   checklistCategoryLabels,
+  checklistPriorities,
+  checklistPriorityLabels,
   colorFor,
   formatDate,
   initialsOf,
+  priorityRank,
 } from "../lib/format";
 import { Field, Modal, SelectField, ViewHeader, useSaveHandler } from "./ui";
 
@@ -24,6 +32,7 @@ export function ChecklistItemForm({
   const [form, setForm] = useState({
     candidate_id: String(defaultCandidateId ?? candidates[0]?.id ?? ""),
     category: "strategy" as ChecklistCategory,
+    priority: "media" as ChecklistPriority,
     title: "",
     due_date: "",
   });
@@ -42,6 +51,7 @@ export function ChecklistItemForm({
         title: form.title.trim(),
         label: null,
         due_date: form.due_date || null,
+        priority: form.priority,
       }),
   );
 
@@ -70,6 +80,13 @@ export function ChecklistItemForm({
           </option>
         ))}
       </SelectField>
+      <SelectField label="Prioridade" value={form.priority} onChange={(v) => change("priority", v)}>
+        {checklistPriorities.map((priority) => (
+          <option key={priority} value={priority}>
+            {checklistPriorityLabels[priority]}
+          </option>
+        ))}
+      </SelectField>
       <Field
         label="O que precisa ser feito"
         name="title"
@@ -95,12 +112,14 @@ export function StrategyView({
   onToggle,
   onDelete,
   onCreate,
+  onChangePriority,
 }: {
   candidates: Candidate[];
   items: ChecklistItem[];
   onToggle: (item: ChecklistItem) => void;
   onDelete: (item: ChecklistItem) => void;
   onCreate: () => void;
+  onChangePriority: (item: ChecklistItem, priority: ChecklistPriority) => void;
 }) {
   const [candidateFilter, setCandidateFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -113,6 +132,18 @@ export function StrategyView({
 
   const done = visible.filter((item) => item.completed).length;
   const percent = visible.length ? Math.round((done / visible.length) * 100) : 0;
+
+  // Prioridade manda; dentro dela, o que já foi feito desce e o prazo mais
+  // próximo sobe.
+  const ordered = [...visible].sort((a, b) => {
+    const byPriority = priorityRank(a.priority) - priorityRank(b.priority);
+    if (byPriority !== 0) return byPriority;
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    return (a.due_date ?? "9999-99-99").localeCompare(b.due_date ?? "9999-99-99");
+  });
+
+  const countByPriority = (priority: ChecklistPriority) =>
+    visible.filter((item) => item.priority === priority && !item.completed).length;
 
   return (
     <div className="content">
@@ -156,38 +187,68 @@ export function StrategyView({
         <b>{percent}%</b>
       </section>
 
+      <div className="priority-summary">
+        {checklistPriorities.map((priority) => (
+          <div className={`priority-tile prio-${priority}`} key={priority}>
+            <strong>{countByPriority(priority)}</strong>
+            <span>{checklistPriorityLabels[priority]} em aberto</span>
+          </div>
+        ))}
+      </div>
+
       <section className="panel list-panel">
-        {visible.length ? (
-          visible.map((item) => {
+        {ordered.length ? (
+          ordered.map((item, index) => {
             const candidateIndex = candidates.findIndex((c) => c.id === item.candidate_id);
             const candidate = candidates[candidateIndex];
             const overdue = !item.completed && item.due_date !== null && new Date(item.due_date) < new Date();
+            // Cabeçalho a cada troca de faixa de prioridade.
+            const startsGroup = index === 0 || ordered[index - 1].priority !== item.priority;
             return (
-              <div className="list-row" key={item.id}>
-                <button
-                  className={`check ${item.completed ? "checked" : ""}`}
-                  onClick={() => onToggle(item)}
-                  title={item.completed ? "Marcar como pendente" : "Marcar como concluído"}
-                >
-                  {item.completed ? "✓" : ""}
-                </button>
-                {candidate && (
-                  <div className={`candidate-avatar small-avatar ${colorFor(candidateIndex)}`}>
-                    {initialsOf(candidate.name)}
-                  </div>
+              <div key={item.id}>
+                {startsGroup && (
+                  <h4 className={`priority-heading prio-${item.priority}`}>
+                    {checklistPriorityLabels[item.priority]} prioridade
+                  </h4>
                 )}
-                <div className="grow">
-                  <b className={item.completed ? "done" : ""}>{item.title}</b>
-                  <span>
-                    {checklistCategoryLabels[item.category]}
-                    {candidate ? ` · ${candidate.name}` : ""}
-                    {item.due_date ? ` · prazo ${formatDate(item.due_date)}` : ""}
-                  </span>
+                <div className="list-row">
+                  <button
+                    className={`check ${item.completed ? "checked" : ""}`}
+                    onClick={() => onToggle(item)}
+                    title={item.completed ? "Marcar como pendente" : "Marcar como concluído"}
+                  >
+                    {item.completed ? "✓" : ""}
+                  </button>
+                  {candidate && (
+                    <div className={`candidate-avatar small-avatar ${colorFor(candidateIndex)}`}>
+                      {initialsOf(candidate.name)}
+                    </div>
+                  )}
+                  <div className="grow">
+                    <b className={item.completed ? "done" : ""}>{item.title}</b>
+                    <span>
+                      {checklistCategoryLabels[item.category]}
+                      {candidate ? ` · ${candidate.name}` : ""}
+                      {item.due_date ? ` · prazo ${formatDate(item.due_date)}` : ""}
+                    </span>
+                  </div>
+                  {overdue && <em>ATRASADO</em>}
+                  <select
+                    className={`priority-select prio-${item.priority}`}
+                    value={item.priority}
+                    onChange={(e) => onChangePriority(item, e.target.value as ChecklistPriority)}
+                    title="Mudar prioridade"
+                  >
+                    {checklistPriorities.map((priority) => (
+                      <option key={priority} value={priority}>
+                        {checklistPriorityLabels[priority]}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="row-delete" onClick={() => onDelete(item)} title="Excluir item">
+                    ×
+                  </button>
                 </div>
-                {overdue && <em>ATRASADO</em>}
-                <button className="row-delete" onClick={() => onDelete(item)} title="Excluir item">
-                  ×
-                </button>
               </div>
             );
           })
