@@ -266,6 +266,7 @@ export async function deleteProduction(id: number) {
 export type NewTeamMemberInput = {
   name: string;
   email: string;
+  phone: string | null;
   role: TeamRole;
   active: boolean;
 };

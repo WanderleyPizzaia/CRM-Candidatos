@@ -877,3 +877,30 @@
   background: #e5f4fb;
   color: #124b7d;
 }
+
+/* ------------------------------------------------------------- whatsapp */
+.whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid #bfe6c8;
+  background: #eaf7ee;
+  color: #17663a;
+  font-size: 12px;
+  font-weight: bold;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.whatsapp-btn:hover {
+  background: #d9f0e1;
+}
+.whatsapp-btn.no-phone {
+  border-style: dashed;
+  border-color: #d8ddd9;
+  background: #fafbfa;
+  color: #8b918f;
+}

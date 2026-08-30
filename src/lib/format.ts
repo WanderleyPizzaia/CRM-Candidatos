@@ -12,10 +12,11 @@ export const avatarColors = ["coral", "blue", "gold"] as const;
 
 export const roleLabels: Record<TeamRole, string> = {
   admin: "Administrador",
+  coordinator: "Coordenador",
   designer: "Designer",
   editor_filmmaker: "Editor/Filmmaker",
 };
-export const teamRoles: TeamRole[] = ["admin", "designer", "editor_filmmaker"];
+export const teamRoles: TeamRole[] = ["admin", "coordinator", "designer", "editor_filmmaker"];
 
 export const calendarKindLabels: Record<CalendarKind, string> = {
   agenda: "Agenda",
@@ -151,6 +152,27 @@ export function isOverdue(value: string | null, completed: boolean) {
 
 export function formatVotes(value: number) {
   return value.toLocaleString("pt-BR");
+}
+
+/**
+ * Monta o link do WhatsApp. O wa.me só aceita dígitos com código do país, então
+ * um número escrito à brasileira (DDD + 8 ou 9 dígitos) recebe o 55 na frente.
+ * Devolve null quando não sobra número suficiente para valer o atalho.
+ */
+export function whatsappLink(phone: string | null): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  const withCountry = digits.length <= 11 ? `55${digits}` : digits;
+  return `https://wa.me/${withCountry}`;
+}
+
+export function formatPhone(phone: string | null): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "").replace(/^55/, "");
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return phone;
 }
 
 /**

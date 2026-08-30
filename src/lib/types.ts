@@ -16,7 +16,7 @@ export type ProductionStatus =
   | "changes"
   | "approved"
   | "published";
-export type TeamRole = "admin" | "designer" | "editor_filmmaker";
+export type TeamRole = "admin" | "coordinator" | "designer" | "editor_filmmaker";
 
 export type Candidate = {
   id: number;
@@ -91,6 +91,7 @@ export type TeamMember = {
   auth_user_id: string | null;
   name: string;
   email: string;
+  phone: string | null;
   role: TeamRole;
   active: boolean;
   created_at: string;

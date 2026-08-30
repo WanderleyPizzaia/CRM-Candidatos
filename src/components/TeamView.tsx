@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Production, TeamMember, TeamRole } from "../lib/types";
 import type { NewTeamMemberInput } from "../lib/api";
-import { colorFor, initialsOf, roleLabels, teamRoles } from "../lib/format";
+import { colorFor, formatPhone, initialsOf, roleLabels, teamRoles, whatsappLink } from "../lib/format";
 import { Field, Modal, SelectField, ViewHeader, useSaveHandler } from "./ui";
 
 export function TeamMemberForm({
@@ -16,6 +16,7 @@ export function TeamMemberForm({
   const [form, setForm] = useState({
     name: editing?.name ?? "",
     email: editing?.email ?? "",
+    phone: editing?.phone ?? "",
     role: editing?.role ?? ("designer" as TeamRole),
   });
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }) as typeof f);
@@ -30,6 +31,7 @@ export function TeamMemberForm({
       onSave({
         name: form.name.trim(),
         email: form.email.trim(),
+        phone: form.phone.trim() || null,
         role: form.role,
         active: editing?.active ?? true,
       }),
@@ -54,6 +56,13 @@ export function TeamMemberForm({
         value={form.email}
         onChange={change}
         placeholder="nome@agenciacriando.com.br"
+      />
+      <Field
+        label="WhatsApp (com DDD)"
+        name="phone"
+        value={form.phone}
+        onChange={change}
+        placeholder="(11) 98765-4321"
       />
       <SelectField label="Função" value={form.role} onChange={(v) => change("role", v)}>
         {teamRoles.map((role) => (
@@ -89,6 +98,7 @@ export function TeamView({
           members.map((member, index) => {
             const assigned = productions.filter((p) => p.assignee_id === member.id);
             const open = assigned.filter((p) => p.status !== "published" && p.status !== "approved").length;
+            const whatsapp = whatsappLink(member.phone);
             return (
               <div className="list-row" key={member.id}>
                 <div className={`candidate-avatar ${colorFor(index)}`}>{initialsOf(member.name)}</div>
@@ -96,8 +106,28 @@ export function TeamView({
                   <b>{member.name}</b>
                   <span>
                     {member.email} · {roleLabels[member.role] ?? member.role}
+                    {member.phone ? ` · ${formatPhone(member.phone)}` : ""}
                   </span>
                 </div>
+                {whatsapp ? (
+                  <a
+                    className="whatsapp-btn"
+                    href={whatsapp}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Chamar ${member.name} no WhatsApp`}
+                  >
+                    ✆ WhatsApp
+                  </a>
+                ) : (
+                  <button
+                    className="whatsapp-btn no-phone"
+                    onClick={() => onEdit(member)}
+                    title="Cadastrar telefone"
+                  >
+                    ✆ Sem número
+                  </button>
+                )}
                 <div className="member-load">
                   <strong>{open}</strong>
                   <span>em aberto</span>
