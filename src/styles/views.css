@@ -904,3 +904,13 @@
   background: #fafbfa;
   color: #8b918f;
 }
+.notify-text {
+  min-height: 190px !important;
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  white-space: pre-wrap;
+}
+.notify-hint {
+  font-size: 12px;
+  color: #8b918f;
+  margin: 10px 0 0;
+}

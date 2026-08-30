@@ -57,6 +57,8 @@ import {
   roleLabels,
   todayLabel,
 } from "./lib/format";
+import { buildCalendarMessage, buildProductionMessage, type PendingNotice } from "./lib/notify";
+import { NotifyModal } from "./components/NotifyModal";
 import { Login } from "./components/Login";
 import { CandidateForm } from "./components/CandidateForm";
 import { CandidateDetail } from "./components/CandidateDetail";
@@ -145,6 +147,7 @@ export default function App() {
     open: false,
     editing: null,
   });
+  const [notice, setNotice] = useState<PendingNotice | null>(null);
 
   // A sessão é recriada a cada refresh de token; seguir o id evita recarregar tudo à toa.
   const userId = session?.user.id ?? null;
@@ -445,19 +448,33 @@ export default function App() {
 
   const handleSaveCalendarItem = async (input: NewCalendarItemInput) => {
     const editing = calendarForm.editing;
+    let saved: CalendarItem;
     if (editing) {
       const { candidate_id: _ignored, ...fields } = input;
-      const updated = await updateCalendarItem(editing.id, fields);
+      saved = await updateCalendarItem(editing.id, fields);
       setData((prev) =>
         prev
-          ? { ...prev, calendarItems: prev.calendarItems.map((c) => (c.id === updated.id ? updated : c)) }
+          ? { ...prev, calendarItems: prev.calendarItems.map((c) => (c.id === saved.id ? saved : c)) }
           : prev,
       );
     } else {
-      const created = await createCalendarItem(input);
-      setData((prev) => (prev ? { ...prev, calendarItems: [...prev.calendarItems, created] } : prev));
+      saved = await createCalendarItem(input);
+      setData((prev) => (prev ? { ...prev, calendarItems: [...prev.calendarItems, saved] } : prev));
     }
     setCalendarForm({ open: false, editing: null });
+
+    const changedAssignee = editing && editing.assignee_id !== saved.assignee_id;
+    if (!editing || changedAssignee) {
+      const member = data?.teamMembers.find((m) => m.id === saved.assignee_id);
+      if (member) {
+        const candidate = data?.candidates.find((c) => c.id === saved.candidate_id);
+        setNotice({
+          member,
+          subject: saved.title,
+          message: buildCalendarMessage(saved, candidate, member),
+        });
+      }
+    }
   };
 
   const handleToggleCalendar = async (item: CalendarItem) => {
@@ -493,19 +510,37 @@ export default function App() {
 
   /* --------------------------------------------------------------- produção */
 
+  const notifyProductionAssignee = (production: Production) => {
+    const member = data?.teamMembers.find((m) => m.id === production.assignee_id);
+    if (!member) return;
+    const candidate = data?.candidates.find((c) => c.id === production.candidate_id);
+    setNotice({
+      member,
+      subject: production.title,
+      message: buildProductionMessage(production, candidate, member),
+    });
+  };
+
   const handleSaveProduction = async (input: NewProductionInput) => {
-    if (productionForm.editing) {
-      const updated = await updateProduction(productionForm.editing.id, input);
+    const wasEditing = productionForm.editing;
+    let saved: Production;
+    if (wasEditing) {
+      saved = await updateProduction(wasEditing.id, input);
       setData((prev) =>
         prev
-          ? { ...prev, productions: prev.productions.map((p) => (p.id === updated.id ? updated : p)) }
+          ? { ...prev, productions: prev.productions.map((p) => (p.id === saved.id ? saved : p)) }
           : prev,
       );
     } else {
-      const created = await createProduction(input);
-      setData((prev) => (prev ? { ...prev, productions: [...prev.productions, created] } : prev));
+      saved = await createProduction(input);
+      setData((prev) => (prev ? { ...prev, productions: [...prev.productions, saved] } : prev));
     }
     setProductionForm({ open: false, editing: null });
+
+    // Avisa ao criar, e também quando a edição troca o responsável — quem
+    // acabou de receber a demanda é que precisa saber.
+    const changedAssignee = wasEditing && wasEditing.assignee_id !== saved.assignee_id;
+    if (!wasEditing || changedAssignee) notifyProductionAssignee(saved);
   };
 
   const handleMoveProduction = async (production: Production, status: ProductionStatus) => {
@@ -751,6 +786,7 @@ export default function App() {
             onEdit={(production) => setProductionForm({ open: true, editing: production })}
             onMove={handleMoveProduction}
             onDelete={handleDeleteProduction}
+            onNotify={notifyProductionAssignee}
           />
         );
       case "Equipe":
@@ -1046,6 +1082,7 @@ export default function App() {
           onSave={handleSaveProduction}
         />
       )}
+      {notice && <NotifyModal notice={notice} onClose={() => setNotice(null)} />}
       {teamForm.open && (
         <TeamMemberForm
           editing={teamForm.editing}

@@ -147,6 +147,7 @@ export function ProductionBoard({
   onEdit,
   onMove,
   onDelete,
+  onNotify,
 }: {
   productions: Production[];
   candidates: Candidate[];
@@ -155,6 +156,7 @@ export function ProductionBoard({
   onEdit: (production: Production) => void;
   onMove: (production: Production, status: ProductionStatus) => void;
   onDelete: (production: Production) => void;
+  onNotify: (production: Production) => void;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState("all");
@@ -267,6 +269,11 @@ export function ProductionBoard({
                           <a href={production.drive_file_url} target="_blank" rel="noreferrer" title="Abrir no Drive">
                             △
                           </a>
+                        )}
+                        {assignee && (
+                          <button onClick={() => onNotify(production)} title={`Avisar ${assignee.name}`}>
+                            ✆
+                          </button>
                         )}
                         <button onClick={() => onEdit(production)}>Editar</button>
                       </div>
