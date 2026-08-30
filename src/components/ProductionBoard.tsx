@@ -54,6 +54,22 @@ export function ProductionForm({
   });
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }) as typeof f);
 
+  // Formatos fora da lista (peças antigas ou casos avulsos) abrem em "Outro".
+  const [formatMode, setFormatMode] = useState<string>(() => {
+    const current = editing?.format;
+    if (!current) return formatSuggestions[0];
+    return formatSuggestions.includes(current) ? current : "custom";
+  });
+
+  const changeFormatMode = (value: string) => {
+    setFormatMode(value);
+    if (value === "custom") {
+      if (formatSuggestions.includes(form.format)) change("format", "");
+    } else {
+      change("format", value);
+    }
+  };
+
   const foldered = candidates.filter((c) => c.drive_folder_url);
   // O menu guarda de quem é a pasta; "custom" libera colar o link de um
   // arquivo específico, que é o que o campo fazia antes.
@@ -130,20 +146,23 @@ export function ProductionForm({
         onChange={change}
         placeholder="Ex.: Reel — Saúde na prática"
       />
-      <label className="field">
-        <span>Formato</span>
-        <input
-          list="production-formats"
+      <SelectField label="Formato" value={formatMode} onChange={changeFormatMode}>
+        {formatSuggestions.map((format) => (
+          <option key={format} value={format}>
+            {format}
+          </option>
+        ))}
+        <option value="custom">Outro (digitar)</option>
+      </SelectField>
+      {formatMode === "custom" && (
+        <Field
+          label="Qual formato?"
+          name="format"
           value={form.format}
-          onChange={(e) => change("format", e.target.value)}
-          placeholder="Reel, Carrossel, Post..."
+          onChange={change}
+          placeholder="Ex.: Outdoor, Santinho, Jingle..."
         />
-        <datalist id="production-formats">
-          {formatSuggestions.map((format) => (
-            <option key={format} value={format} />
-          ))}
-        </datalist>
-      </label>
+      )}
       <SelectField
         label="Responsável (quem executa)"
         value={form.assignee_id}
