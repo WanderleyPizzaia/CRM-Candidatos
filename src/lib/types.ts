@@ -1,6 +1,12 @@
 export type Office = "Deputado Federal" | "Deputado Estadual";
 export type CandidateStatus = "active" | "paused" | "closed";
-export type ChecklistCategory = "document" | "electoral_requirement" | "strategy";
+export type ChecklistCategory =
+  | "ground"
+  | "digital"
+  | "document"
+  | "electoral_requirement"
+  /** Itens criados antes da separação chão/internet. */
+  | "strategy";
 export type ChecklistPriority = "alta" | "media" | "baixa";
 export type CalendarKind = "agenda" | "content" | "deadline" | "recording";
 export type ProductionStatus =
@@ -93,5 +99,13 @@ export type TeamMember = {
 export type AgencyMember = {
   auth_user_id: string;
   role: TeamRole;
+  created_at: string;
+};
+
+export type VoteProjection = {
+  id: number;
+  candidate_id: number;
+  region: string;
+  projected_votes: number;
   created_at: string;
 };

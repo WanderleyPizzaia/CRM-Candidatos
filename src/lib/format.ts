@@ -26,15 +26,22 @@ export const calendarKindLabels: Record<CalendarKind, string> = {
 export const calendarKinds: CalendarKind[] = ["agenda", "content", "deadline", "recording"];
 
 export const checklistCategoryLabels: Record<ChecklistCategory, string> = {
+  ground: "Estratégia de chão",
+  digital: "Internet",
   document: "Documento",
   electoral_requirement: "Exigência eleitoral",
-  strategy: "Estratégia",
+  strategy: "Geral",
 };
 export const checklistCategories: ChecklistCategory[] = [
-  "strategy",
+  "ground",
+  "digital",
   "document",
   "electoral_requirement",
 ];
+
+/** As duas frentes que ganham coluna própria na tela de Estratégia. */
+export const strategyTracks: ChecklistCategory[] = ["ground", "digital"];
+export const trackIcons: Record<string, string> = { ground: "◈", digital: "◉" };
 
 export const checklistPriorityLabels: Record<ChecklistPriority, string> = {
   alta: "Alta",
@@ -141,3 +148,22 @@ export function isOverdue(value: string | null, completed: boolean) {
   if (!value || completed) return false;
   return new Date(value) < new Date();
 }
+
+export function formatVotes(value: number) {
+  return value.toLocaleString("pt-BR");
+}
+
+/**
+ * Paleta categórica validada com `scripts/validate_palette.js` do skill dataviz
+ * (modo light, superfície #ffffff): todos os pares adjacentes do anel passam
+ * — pior CVD ΔE 9.1, pior visão normal ΔE 19.6. Três tons ficam abaixo de 3:1
+ * de contraste, então o gráfico é obrigado a trazer rótulos visíveis e tabela.
+ */
+export const seriesColors = [
+  "#2a78d6",
+  "#eb6834",
+  "#1baf7a",
+  "#eda100",
+  "#e87ba4",
+  "#008300",
+] as const;

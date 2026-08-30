@@ -12,9 +12,12 @@ import {
   deleteChecklistItem,
   deleteProduction,
   deleteTeamMember,
+  deleteVoteProjection,
+  upsertVoteProjection,
   fetchAgencyMembership,
   fetchDashboardData,
   setCalendarItemCompleted,
+  setChecklistItemCategory,
   setChecklistItemCompleted,
   setChecklistItemPriority,
   setTeamMemberActive,
@@ -26,16 +29,19 @@ import {
   type NewChecklistItemInput,
   type NewProductionInput,
   type NewTeamMemberInput,
+  type VoteProjectionInput,
 } from "./lib/api";
 import type {
   AgencyMember,
   CalendarItem,
   Candidate,
+  ChecklistCategory,
   ChecklistItem,
   ChecklistPriority,
   Production,
   ProductionStatus,
   TeamMember,
+  VoteProjection,
 } from "./lib/types";
 import {
   ELECTION_DEADLINE,
@@ -52,7 +58,7 @@ import { Login } from "./components/Login";
 import { CandidateForm } from "./components/CandidateForm";
 import { CandidateDetail } from "./components/CandidateDetail";
 import { CandidatesView } from "./components/CandidatesView";
-import { ChecklistItemForm, StrategyView } from "./components/StrategyView";
+import { ChecklistItemForm, StrategyView, VoteProjectionForm } from "./components/StrategyView";
 import { AgendaView, CalendarItemForm } from "./components/AgendaView";
 import { CalendarView } from "./components/CalendarView";
 import { ProductionBoard, ProductionForm } from "./components/ProductionBoard";
@@ -117,7 +123,12 @@ export default function App() {
     open: false,
     editing: null,
   });
-  const [showChecklistForm, setShowChecklistForm] = useState(false);
+  const [checklistForm, setChecklistForm] = useState<{ open: boolean; track: ChecklistCategory }>({
+    open: false,
+    track: "ground",
+  });
+  const [strategyCandidateId, setStrategyCandidateId] = useState<number | null>(null);
+  const [showProjectionForm, setShowProjectionForm] = useState(false);
   const [showCalendarForm, setShowCalendarForm] = useState(false);
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [productionForm, setProductionForm] = useState<{ open: boolean; editing: Production | null }>({
@@ -178,6 +189,11 @@ export default function App() {
   const detail = useMemo(
     () => data?.candidates.find((c) => c.id === detailId) ?? null,
     [data, detailId],
+  );
+
+  const strategyCandidate = useMemo(
+    () => data?.candidates.find((c) => c.id === strategyCandidateId) ?? null,
+    [data, strategyCandidateId],
   );
 
   const stats = useMemo(() => {
@@ -303,7 +319,35 @@ export default function App() {
   const handleCreateChecklistItem = async (input: NewChecklistItemInput) => {
     const created = await createChecklistItem(input);
     setData((prev) => (prev ? { ...prev, checklistItems: [...prev.checklistItems, created] } : prev));
-    setShowChecklistForm(false);
+    setChecklistForm((f) => ({ ...f, open: false }));
+  };
+
+  /* ------------------------------------------------------- projeção de votos */
+
+  const handleSaveProjection = async (input: VoteProjectionInput) => {
+    const saved = await upsertVoteProjection(input);
+    setData((prev) => {
+      if (!prev) return prev;
+      const rest = prev.voteProjections.filter((p) => p.id !== saved.id);
+      return { ...prev, voteProjections: [...rest, saved] };
+    });
+    setShowProjectionForm(false);
+  };
+
+  const handleDeleteProjection = async (projection: VoteProjection) => {
+    if (!window.confirm(`Remover a projeção de "${projection.region}"?`)) return;
+    const previous = data;
+    setData((prev) =>
+      prev
+        ? { ...prev, voteProjections: prev.voteProjections.filter((p) => p.id !== projection.id) }
+        : prev,
+    );
+    try {
+      await deleteVoteProjection(projection.id);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao remover a projeção.");
+    }
   };
 
   const handleToggleChecklist = async (item: ChecklistItem) => {
@@ -338,6 +382,24 @@ export default function App() {
     } catch (err) {
       setData(previous);
       reportError(err, "Erro ao mudar a prioridade.");
+    }
+  };
+
+  const handleChangeChecklistCategory = async (item: ChecklistItem, category: ChecklistCategory) => {
+    const previous = data;
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            checklistItems: prev.checklistItems.map((c) => (c.id === item.id ? { ...c, category } : c)),
+          }
+        : prev,
+    );
+    try {
+      await setChecklistItemCategory(item.id, category);
+    } catch (err) {
+      setData(previous);
+      reportError(err, "Erro ao mudar a frente do item.");
     }
   };
 
@@ -598,10 +660,16 @@ export default function App() {
           <StrategyView
             candidates={data.candidates}
             items={data.checklistItems}
+            voteProjections={data.voteProjections}
+            selected={strategyCandidate}
+            onSelect={(candidate) => setStrategyCandidateId(candidate?.id ?? null)}
             onToggle={handleToggleChecklist}
             onDelete={handleDeleteChecklistItem}
-            onCreate={() => setShowChecklistForm(true)}
             onChangePriority={handleChangeChecklistPriority}
+            onChangeCategory={handleChangeChecklistCategory}
+            onCreateItem={(track) => setChecklistForm({ open: true, track })}
+            onAddProjection={() => setShowProjectionForm(true)}
+            onDeleteProjection={handleDeleteProjection}
           />
         );
       case "Agenda":
@@ -894,12 +962,20 @@ export default function App() {
           onSave={handleSaveCandidate}
         />
       )}
-      {showChecklistForm && data && (
+      {checklistForm.open && data && (
         <ChecklistItemForm
           candidates={data.candidates}
-          defaultCandidateId={detailId}
-          onClose={() => setShowChecklistForm(false)}
+          defaultCandidateId={strategyCandidateId ?? detailId}
+          defaultCategory={checklistForm.track}
+          onClose={() => setChecklistForm((f) => ({ ...f, open: false }))}
           onSave={handleCreateChecklistItem}
+        />
+      )}
+      {showProjectionForm && strategyCandidate && (
+        <VoteProjectionForm
+          candidate={strategyCandidate}
+          onClose={() => setShowProjectionForm(false)}
+          onSave={handleSaveProjection}
         />
       )}
       {showCalendarForm && data && (

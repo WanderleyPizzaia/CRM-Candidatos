@@ -13,6 +13,7 @@ import type {
   ProductionStatus,
   TeamMember,
   TeamRole,
+  VoteProjection,
 } from "./types";
 
 export type DashboardData = {
@@ -22,6 +23,7 @@ export type DashboardData = {
   productions: Production[];
   doubledCampaigns: DoubledCampaign[];
   teamMembers: TeamMember[];
+  voteProjections: VoteProjection[];
 };
 
 /**
@@ -53,18 +55,26 @@ export async function fetchAgencyMembership(userId: string): Promise<AgencyMembe
 }
 
 export async function fetchDashboardData(): Promise<DashboardData> {
-  const [candidates, checklistItems, calendarItems, productions, doubledCampaigns, teamMembers] =
-    await withTimeout(
-      Promise.all([
-        supabase.from("candidates").select("*").order("created_at", { ascending: true }),
-        supabase.from("checklist_items").select("*").order("due_date", { ascending: true }),
-        supabase.from("calendar_items").select("*").order("starts_at", { ascending: true }),
-        supabase.from("productions").select("*").order("due_at", { ascending: true }),
-        supabase.from("doubled_campaigns").select("*").order("created_at", { ascending: true }),
-        supabase.from("team_members").select("*").order("name", { ascending: true }),
-      ]),
-      "Carregamento dos dados",
-    );
+  const [
+    candidates,
+    checklistItems,
+    calendarItems,
+    productions,
+    doubledCampaigns,
+    teamMembers,
+    voteProjections,
+  ] = await withTimeout(
+    Promise.all([
+      supabase.from("candidates").select("*").order("created_at", { ascending: true }),
+      supabase.from("checklist_items").select("*").order("due_date", { ascending: true }),
+      supabase.from("calendar_items").select("*").order("starts_at", { ascending: true }),
+      supabase.from("productions").select("*").order("due_at", { ascending: true }),
+      supabase.from("doubled_campaigns").select("*").order("created_at", { ascending: true }),
+      supabase.from("team_members").select("*").order("name", { ascending: true }),
+      supabase.from("vote_projections").select("*").order("projected_votes", { ascending: false }),
+    ]),
+    "Carregamento dos dados",
+  );
 
   for (const result of [
     candidates,
@@ -73,6 +83,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     productions,
     doubledCampaigns,
     teamMembers,
+    voteProjections,
   ]) {
     if (result.error) throw result.error;
   }
@@ -84,6 +95,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     productions: productions.data ?? [],
     doubledCampaigns: doubledCampaigns.data ?? [],
     teamMembers: teamMembers.data ?? [],
+    voteProjections: voteProjections.data ?? [],
   };
 }
 
@@ -148,6 +160,11 @@ export async function setChecklistItemCompleted(id: number, completed: boolean) 
 
 export async function setChecklistItemPriority(id: number, priority: ChecklistPriority) {
   const { error } = await supabase.from("checklist_items").update({ priority }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setChecklistItemCategory(id: number, category: ChecklistCategory) {
+  const { error } = await supabase.from("checklist_items").update({ category }).eq("id", id);
   if (error) throw error;
 }
 
@@ -242,5 +259,29 @@ export async function setTeamMemberActive(id: number, active: boolean) {
  */
 export async function deleteTeamMember(id: number) {
   const { error } = await supabase.from("team_members").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/* -------------------------------------------------------- projeção de votos */
+
+export type VoteProjectionInput = {
+  candidate_id: number;
+  region: string;
+  projected_votes: number;
+};
+
+/** Regravar a mesma região substitui o valor, em vez de duplicar a fatia. */
+export async function upsertVoteProjection(input: VoteProjectionInput): Promise<VoteProjection> {
+  const { data, error } = await supabase
+    .from("vote_projections")
+    .upsert(input, { onConflict: "candidate_id,region" })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteVoteProjection(id: number) {
+  const { error } = await supabase.from("vote_projections").delete().eq("id", id);
   if (error) throw error;
 }
