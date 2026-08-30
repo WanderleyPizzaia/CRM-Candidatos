@@ -863,3 +863,17 @@
   color: #8b918f;
   margin: 6px 0 0;
 }
+.row-edit {
+  border: 0;
+  background: transparent;
+  color: #7f97a6;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.row-edit:hover {
+  background: #e5f4fb;
+  color: #124b7d;
+}

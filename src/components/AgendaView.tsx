@@ -8,27 +8,30 @@ import {
   formatDateTime,
   initialsOf,
   roleLabels,
+  toDateTimeInput,
 } from "../lib/format";
 import { Field, Modal, SelectField, ViewHeader, useSaveHandler } from "./ui";
 
 export function CalendarItemForm({
   candidates,
   teamMembers,
+  editing,
   onClose,
   onSave,
 }: {
   candidates: Candidate[];
   teamMembers: TeamMember[];
+  editing: CalendarItem | null;
   onClose: () => void;
   onSave: (input: NewCalendarItemInput) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({
-    candidate_id: String(candidates[0]?.id ?? ""),
-    title: "",
-    kind: "agenda" as CalendarKind,
-    starts_at: "",
-    due_at: "",
-    assignee_id: "",
+    candidate_id: String(editing?.candidate_id ?? candidates[0]?.id ?? ""),
+    title: editing?.title ?? "",
+    kind: editing?.kind ?? ("agenda" as CalendarKind),
+    starts_at: toDateTimeInput(editing?.starts_at ?? null),
+    due_at: toDateTimeInput(editing?.due_at ?? null),
+    assignee_id: editing && editing.assignee_id !== null ? String(editing.assignee_id) : "",
   });
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }) as typeof f);
 
@@ -52,12 +55,12 @@ export function CalendarItemForm({
 
   return (
     <Modal
-      eyebrow="NOVO EVENTO"
-      title="Adicionar à agenda"
+      eyebrow={editing ? "EDIÇÃO" : "NOVO EVENTO"}
+      title={editing ? "Editar evento" : "Adicionar à agenda"}
       subtitle="Vincule o evento a um candidato e defina data e responsável."
       error={error}
       saving={saving}
-      saveLabel="Adicionar evento"
+      saveLabel={editing ? "Salvar alterações" : "Adicionar evento"}
       onSave={submit}
       onClose={onClose}
     >
@@ -116,6 +119,7 @@ export function AgendaView({
   teamMembers,
   onToggle,
   onDelete,
+  onEdit,
   onCreate,
 }: {
   items: CalendarItem[];
@@ -123,6 +127,7 @@ export function AgendaView({
   teamMembers: TeamMember[];
   onToggle: (item: CalendarItem) => void;
   onDelete: (item: CalendarItem) => void;
+  onEdit: (item: CalendarItem) => void;
   onCreate: () => void;
 }) {
   const sorted = [...items].sort(
@@ -162,6 +167,9 @@ export function AgendaView({
                   </span>
                 </div>
                 {overdue && <em>ATRASADO</em>}
+                <button className="row-edit" onClick={() => onEdit(item)} title="Editar evento">
+                  ✎
+                </button>
                 <button className="row-delete" onClick={() => onDelete(item)} title="Excluir evento">
                   ×
                 </button>

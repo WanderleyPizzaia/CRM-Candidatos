@@ -5,13 +5,19 @@ import { colorFor, initialsOf, roleLabels, teamRoles } from "../lib/format";
 import { Field, Modal, SelectField, ViewHeader, useSaveHandler } from "./ui";
 
 export function TeamMemberForm({
+  editing,
   onClose,
   onSave,
 }: {
+  editing: TeamMember | null;
   onClose: () => void;
   onSave: (input: NewTeamMemberInput) => Promise<unknown>;
 }) {
-  const [form, setForm] = useState({ name: "", email: "", role: "designer" as TeamRole });
+  const [form, setForm] = useState({
+    name: editing?.name ?? "",
+    email: editing?.email ?? "",
+    role: editing?.role ?? ("designer" as TeamRole),
+  });
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }) as typeof f);
 
   const { error, saving, submit } = useSaveHandler(
@@ -25,18 +31,18 @@ export function TeamMemberForm({
         name: form.name.trim(),
         email: form.email.trim(),
         role: form.role,
-        active: true,
+        active: editing?.active ?? true,
       }),
   );
 
   return (
     <Modal
-      eyebrow="NOVO MEMBRO"
-      title="Adicionar à equipe"
+      eyebrow={editing ? "EDIÇÃO" : "NOVO MEMBRO"}
+      title={editing ? "Editar membro" : "Adicionar à equipe"}
       subtitle="A função define o que a pessoa faz nas peças de produção."
       error={error}
       saving={saving}
-      saveLabel="Adicionar membro"
+      saveLabel={editing ? "Salvar alterações" : "Adicionar membro"}
       onSave={submit}
       onClose={onClose}
     >
@@ -66,12 +72,14 @@ export function TeamView({
   onCreate,
   onToggleActive,
   onDelete,
+  onEdit,
 }: {
   members: TeamMember[];
   productions: Production[];
   onCreate: () => void;
   onToggleActive: (member: TeamMember) => void;
   onDelete: (member: TeamMember) => void;
+  onEdit: (member: TeamMember) => void;
 }) {
   return (
     <div className="content">
@@ -97,6 +105,9 @@ export function TeamView({
                 <span className={`pill ${member.active ? "" : "inactive"}`}>
                   {member.active ? "Ativo" : "Inativo"}
                 </span>
+                <button className="secondary small" onClick={() => onEdit(member)}>
+                  Editar
+                </button>
                 <button className="secondary small" onClick={() => onToggleActive(member)}>
                   {member.active ? "Desativar" : "Ativar"}
                 </button>

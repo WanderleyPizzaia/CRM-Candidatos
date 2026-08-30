@@ -21,6 +21,9 @@ import {
   setChecklistItemCompleted,
   setChecklistItemPriority,
   setTeamMemberActive,
+  updateCalendarItem,
+  updateChecklistItem,
+  updateTeamMember,
   updateCandidate,
   updateProduction,
   type CandidateInput,
@@ -123,14 +126,21 @@ export default function App() {
     open: false,
     editing: null,
   });
-  const [checklistForm, setChecklistForm] = useState<{ open: boolean; track: ChecklistCategory }>({
-    open: false,
-    track: "ground",
-  });
+  const [checklistForm, setChecklistForm] = useState<{
+    open: boolean;
+    track: ChecklistCategory;
+    editing: ChecklistItem | null;
+  }>({ open: false, track: "ground", editing: null });
   const [strategyCandidateId, setStrategyCandidateId] = useState<number | null>(null);
   const [showProjectionForm, setShowProjectionForm] = useState(false);
-  const [showCalendarForm, setShowCalendarForm] = useState(false);
-  const [showTeamForm, setShowTeamForm] = useState(false);
+  const [calendarForm, setCalendarForm] = useState<{ open: boolean; editing: CalendarItem | null }>({
+    open: false,
+    editing: null,
+  });
+  const [teamForm, setTeamForm] = useState<{ open: boolean; editing: TeamMember | null }>({
+    open: false,
+    editing: null,
+  });
   const [productionForm, setProductionForm] = useState<{ open: boolean; editing: Production | null }>({
     open: false,
     editing: null,
@@ -316,10 +326,24 @@ export default function App() {
 
   /* -------------------------------------------------------------- checklist */
 
-  const handleCreateChecklistItem = async (input: NewChecklistItemInput) => {
-    const created = await createChecklistItem(input);
-    setData((prev) => (prev ? { ...prev, checklistItems: [...prev.checklistItems, created] } : prev));
-    setChecklistForm((f) => ({ ...f, open: false }));
+  const handleSaveChecklistItem = async (input: NewChecklistItemInput) => {
+    const editing = checklistForm.editing;
+    if (editing) {
+      const { candidate_id: _ignored, ...fields } = input;
+      const updated = await updateChecklistItem(editing.id, fields);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              checklistItems: prev.checklistItems.map((c) => (c.id === updated.id ? updated : c)),
+            }
+          : prev,
+      );
+    } else {
+      const created = await createChecklistItem(input);
+      setData((prev) => (prev ? { ...prev, checklistItems: [...prev.checklistItems, created] } : prev));
+    }
+    setChecklistForm((f) => ({ ...f, open: false, editing: null }));
   };
 
   /* ------------------------------------------------------- projeção de votos */
@@ -419,10 +443,21 @@ export default function App() {
 
   /* ----------------------------------------------------------------- agenda */
 
-  const handleCreateCalendarItem = async (input: NewCalendarItemInput) => {
-    const created = await createCalendarItem(input);
-    setData((prev) => (prev ? { ...prev, calendarItems: [...prev.calendarItems, created] } : prev));
-    setShowCalendarForm(false);
+  const handleSaveCalendarItem = async (input: NewCalendarItemInput) => {
+    const editing = calendarForm.editing;
+    if (editing) {
+      const { candidate_id: _ignored, ...fields } = input;
+      const updated = await updateCalendarItem(editing.id, fields);
+      setData((prev) =>
+        prev
+          ? { ...prev, calendarItems: prev.calendarItems.map((c) => (c.id === updated.id ? updated : c)) }
+          : prev,
+      );
+    } else {
+      const created = await createCalendarItem(input);
+      setData((prev) => (prev ? { ...prev, calendarItems: [...prev.calendarItems, created] } : prev));
+    }
+    setCalendarForm({ open: false, editing: null });
   };
 
   const handleToggleCalendar = async (item: CalendarItem) => {
@@ -504,10 +539,21 @@ export default function App() {
 
   /* ----------------------------------------------------------------- equipe */
 
-  const handleCreateTeamMember = async (input: NewTeamMemberInput) => {
-    const created = await createTeamMember(input);
-    setData((prev) => (prev ? { ...prev, teamMembers: [...prev.teamMembers, created] } : prev));
-    setShowTeamForm(false);
+  const handleSaveTeamMember = async (input: NewTeamMemberInput) => {
+    const editing = teamForm.editing;
+    if (editing) {
+      const { active: _ignored, ...fields } = input;
+      const updated = await updateTeamMember(editing.id, fields);
+      setData((prev) =>
+        prev
+          ? { ...prev, teamMembers: prev.teamMembers.map((m) => (m.id === updated.id ? updated : m)) }
+          : prev,
+      );
+    } else {
+      const created = await createTeamMember(input);
+      setData((prev) => (prev ? { ...prev, teamMembers: [...prev.teamMembers, created] } : prev));
+    }
+    setTeamForm({ open: false, editing: null });
   };
 
   const handleToggleTeamMemberActive = async (member: TeamMember) => {
@@ -665,9 +711,10 @@ export default function App() {
             onSelect={(candidate) => setStrategyCandidateId(candidate?.id ?? null)}
             onToggle={handleToggleChecklist}
             onDelete={handleDeleteChecklistItem}
+            onEditItem={(item) => setChecklistForm({ open: true, track: item.category, editing: item })}
             onChangePriority={handleChangeChecklistPriority}
             onChangeCategory={handleChangeChecklistCategory}
-            onCreateItem={(track) => setChecklistForm({ open: true, track })}
+            onCreateItem={(track) => setChecklistForm({ open: true, track, editing: null })}
             onAddProjection={() => setShowProjectionForm(true)}
             onDeleteProjection={handleDeleteProjection}
           />
@@ -680,7 +727,8 @@ export default function App() {
             teamMembers={data.teamMembers}
             onToggle={handleToggleCalendar}
             onDelete={handleDeleteCalendarItem}
-            onCreate={() => setShowCalendarForm(true)}
+            onEdit={(item) => setCalendarForm({ open: true, editing: item })}
+            onCreate={() => setCalendarForm({ open: true, editing: null })}
           />
         );
       case "Calendário":
@@ -690,7 +738,7 @@ export default function App() {
             productions={data.productions}
             candidates={data.candidates}
             teamMembers={data.teamMembers}
-            onCreate={() => setShowCalendarForm(true)}
+            onCreate={() => setCalendarForm({ open: true, editing: null })}
           />
         );
       case "Produção":
@@ -710,9 +758,10 @@ export default function App() {
           <TeamView
             members={data.teamMembers}
             productions={data.productions}
-            onCreate={() => setShowTeamForm(true)}
+            onCreate={() => setTeamForm({ open: true, editing: null })}
             onToggleActive={handleToggleTeamMemberActive}
             onDelete={handleDeleteTeamMember}
+            onEdit={(member) => setTeamForm({ open: true, editing: member })}
           />
         );
       default:
@@ -967,8 +1016,9 @@ export default function App() {
           candidates={data.candidates}
           defaultCandidateId={strategyCandidateId ?? detailId}
           defaultCategory={checklistForm.track}
-          onClose={() => setChecklistForm((f) => ({ ...f, open: false }))}
-          onSave={handleCreateChecklistItem}
+          editing={checklistForm.editing}
+          onClose={() => setChecklistForm((f) => ({ ...f, open: false, editing: null }))}
+          onSave={handleSaveChecklistItem}
         />
       )}
       {showProjectionForm && strategyCandidate && (
@@ -978,12 +1028,13 @@ export default function App() {
           onSave={handleSaveProjection}
         />
       )}
-      {showCalendarForm && data && (
+      {calendarForm.open && data && (
         <CalendarItemForm
           candidates={data.candidates}
           teamMembers={data.teamMembers}
-          onClose={() => setShowCalendarForm(false)}
-          onSave={handleCreateCalendarItem}
+          editing={calendarForm.editing}
+          onClose={() => setCalendarForm({ open: false, editing: null })}
+          onSave={handleSaveCalendarItem}
         />
       )}
       {productionForm.open && data && (
@@ -995,7 +1046,13 @@ export default function App() {
           onSave={handleSaveProduction}
         />
       )}
-      {showTeamForm && <TeamMemberForm onClose={() => setShowTeamForm(false)} onSave={handleCreateTeamMember} />}
+      {teamForm.open && (
+        <TeamMemberForm
+          editing={teamForm.editing}
+          onClose={() => setTeamForm({ open: false, editing: null })}
+          onSave={handleSaveTeamMember}
+        />
+      )}
     </main>
   );
 }

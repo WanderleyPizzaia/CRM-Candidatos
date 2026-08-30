@@ -153,6 +153,20 @@ export async function createChecklistItem(input: NewChecklistItemInput): Promise
   return data;
 }
 
+export async function updateChecklistItem(
+  id: number,
+  input: Omit<NewChecklistItemInput, "candidate_id">,
+): Promise<ChecklistItem> {
+  const { data, error } = await supabase
+    .from("checklist_items")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function setChecklistItemCompleted(id: number, completed: boolean) {
   const { error } = await supabase.from("checklist_items").update({ completed }).eq("id", id);
   if (error) throw error;
@@ -186,6 +200,20 @@ export type NewCalendarItemInput = {
 
 export async function createCalendarItem(input: NewCalendarItemInput): Promise<CalendarItem> {
   const { data, error } = await supabase.from("calendar_items").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCalendarItem(
+  id: number,
+  input: Omit<NewCalendarItemInput, "candidate_id">,
+): Promise<CalendarItem> {
+  const { data, error } = await supabase
+    .from("calendar_items")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }
@@ -244,6 +272,20 @@ export type NewTeamMemberInput = {
 
 export async function createTeamMember(input: NewTeamMemberInput): Promise<TeamMember> {
   const { data, error } = await supabase.from("team_members").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateTeamMember(
+  id: number,
+  input: Omit<NewTeamMemberInput, "active">,
+): Promise<TeamMember> {
+  const { data, error } = await supabase
+    .from("team_members")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

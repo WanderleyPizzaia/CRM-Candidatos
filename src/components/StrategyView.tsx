@@ -29,21 +29,23 @@ export function ChecklistItemForm({
   candidates,
   defaultCandidateId,
   defaultCategory,
+  editing,
   onClose,
   onSave,
 }: {
   candidates: Candidate[];
   defaultCandidateId: number | null;
   defaultCategory: ChecklistCategory;
+  editing: ChecklistItem | null;
   onClose: () => void;
   onSave: (input: NewChecklistItemInput) => Promise<unknown>;
 }) {
   const [form, setForm] = useState({
-    candidate_id: String(defaultCandidateId ?? candidates[0]?.id ?? ""),
-    category: defaultCategory,
-    priority: "media" as ChecklistPriority,
-    title: "",
-    due_date: "",
+    candidate_id: String(editing?.candidate_id ?? defaultCandidateId ?? candidates[0]?.id ?? ""),
+    category: editing?.category ?? defaultCategory,
+    priority: editing?.priority ?? ("media" as ChecklistPriority),
+    title: editing?.title ?? "",
+    due_date: editing?.due_date ?? "",
   });
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }) as typeof f);
 
@@ -66,12 +68,12 @@ export function ChecklistItemForm({
 
   return (
     <Modal
-      eyebrow="NOVO ITEM"
-      title="Adicionar ao checklist"
+      eyebrow={editing ? "EDIÇÃO" : "NOVO ITEM"}
+      title={editing ? "Editar item do checklist" : "Adicionar ao checklist"}
       subtitle="Escolha a frente, a prioridade e o prazo."
       error={error}
       saving={saving}
-      saveLabel="Adicionar item"
+      saveLabel={editing ? "Salvar alterações" : "Adicionar item"}
       onSave={submit}
       onClose={onClose}
     >
@@ -226,6 +228,7 @@ function TrackColumn({
   items,
   onToggle,
   onDelete,
+  onEdit,
   onChangePriority,
   onAdd,
 }: {
@@ -233,6 +236,7 @@ function TrackColumn({
   items: ChecklistItem[];
   onToggle: (item: ChecklistItem) => void;
   onDelete: (item: ChecklistItem) => void;
+  onEdit: (item: ChecklistItem) => void;
   onChangePriority: (item: ChecklistItem, priority: ChecklistPriority) => void;
   onAdd: (track: ChecklistCategory) => void;
 }) {
@@ -296,6 +300,9 @@ function TrackColumn({
                     </option>
                   ))}
                 </select>
+                <button className="row-edit" onClick={() => onEdit(item)} title="Editar item">
+                  ✎
+                </button>
                 <button className="row-delete" onClick={() => onDelete(item)} title="Excluir item">
                   ×
                 </button>
@@ -320,6 +327,7 @@ export function StrategyView({
   onSelect,
   onToggle,
   onDelete,
+  onEditItem,
   onChangePriority,
   onChangeCategory,
   onCreateItem,
@@ -333,6 +341,7 @@ export function StrategyView({
   onSelect: (candidate: Candidate | null) => void;
   onToggle: (item: ChecklistItem) => void;
   onDelete: (item: ChecklistItem) => void;
+  onEditItem: (item: ChecklistItem) => void;
   onChangePriority: (item: ChecklistItem, priority: ChecklistPriority) => void;
   onChangeCategory: (item: ChecklistItem, category: ChecklistCategory) => void;
   onCreateItem: (track: ChecklistCategory) => void;
@@ -409,6 +418,7 @@ export function StrategyView({
             items={mine.filter((i) => i.category === track)}
             onToggle={onToggle}
             onDelete={onDelete}
+            onEdit={onEditItem}
             onChangePriority={onChangePriority}
             onAdd={onCreateItem}
           />
@@ -461,6 +471,9 @@ export function StrategyView({
                   </option>
                 ))}
               </select>
+              <button className="row-edit" onClick={() => onEditItem(item)} title="Editar item">
+                ✎
+              </button>
               <button className="row-delete" onClick={() => onDelete(item)} title="Excluir item">
                 ×
               </button>
