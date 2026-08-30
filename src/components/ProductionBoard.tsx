@@ -54,6 +54,30 @@ export function ProductionForm({
   });
   const change = (name: string, value: string) => setForm((f) => ({ ...f, [name]: value }) as typeof f);
 
+  const foldered = candidates.filter((c) => c.drive_folder_url);
+  // O menu guarda de quem é a pasta; "custom" libera colar o link de um
+  // arquivo específico, que é o que o campo fazia antes.
+  const [driveMode, setDriveMode] = useState<string>(() => {
+    const url = editing?.drive_file_url;
+    if (!url) return "none";
+    const owner = foldered.find((c) => c.drive_folder_url === url);
+    return owner ? String(owner.id) : "custom";
+  });
+
+  const changeDriveMode = (value: string) => {
+    setDriveMode(value);
+    if (value === "none") change("drive_file_url", "");
+    else if (value === "custom") {
+      // Só limpa se o valor atual era a pasta de alguém; um link colado
+      // à mão continua ali para ser ajustado.
+      const wasFolder = foldered.some((c) => c.drive_folder_url === form.drive_file_url);
+      if (wasFolder) change("drive_file_url", "");
+    } else {
+      const owner = foldered.find((c) => String(c.id) === value);
+      change("drive_file_url", owner?.drive_folder_url ?? "");
+    }
+  };
+
   const { error, saving, submit } = useSaveHandler(
     () => {
       if (!form.candidate_id) return "Selecione um candidato.";
@@ -135,14 +159,35 @@ export function ProductionForm({
           ))}
       </SelectField>
       <Field label="Prazo" name="due_at" type="datetime-local" value={form.due_at} onChange={change} />
-      <Field
-        label="Link do arquivo no Drive"
-        name="drive_file_url"
-        value={form.drive_file_url}
-        onChange={change}
-        placeholder="https://drive.google.com/..."
-        full
-      />
+      <SelectField label="Pasta no Drive" value={driveMode} onChange={changeDriveMode} full>
+        <option value="none">Sem pasta vinculada</option>
+        {foldered.map((c) => (
+          <option key={c.id} value={c.id}>
+            Pasta de {c.name}
+          </option>
+        ))}
+        <option value="custom">Outro link (colar endereço)</option>
+      </SelectField>
+      {driveMode === "custom" && (
+        <Field
+          label="Endereço no Drive"
+          name="drive_file_url"
+          value={form.drive_file_url}
+          onChange={change}
+          placeholder="https://drive.google.com/..."
+          full
+        />
+      )}
+      {driveMode !== "none" && driveMode !== "custom" && form.drive_file_url && (
+        <p className="field-note full">
+          Vinculado a: <a href={form.drive_file_url} target="_blank" rel="noreferrer">{form.drive_file_url}</a>
+        </p>
+      )}
+      {!foldered.length && (
+        <p className="field-note full">
+          Nenhum candidato tem pasta do Drive cadastrada ainda — dá para vincular na aba Candidatos.
+        </p>
+      )}
       <TextAreaField
         label="Observações"
         value={form.notes}

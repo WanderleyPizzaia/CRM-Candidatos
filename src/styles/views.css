@@ -914,3 +914,16 @@
   color: #8b918f;
   margin: 10px 0 0;
 }
+.field-note {
+  font-size: 11px;
+  color: #78878f;
+  margin: 0;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.field-note.full {
+  grid-column: 1 / -1;
+}
+.field-note a {
+  color: #1b76a8;
+}
