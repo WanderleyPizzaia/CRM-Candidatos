@@ -13,7 +13,21 @@ import {
 } from "../lib/format";
 import { Field, Modal, SelectField, TextAreaField, ViewHeader, useSaveHandler } from "./ui";
 
-const formatSuggestions = ["Reel", "Carrossel", "Post", "Stories", "Vídeo", "Card", "Banner"];
+/**
+ * Sugestões do campo de formato. O campo segue livre para digitar, então esta
+ * lista é atalho, não restrição — nada quebra se a peça usar outro formato.
+ */
+const formatSuggestions = [
+  "Reel",
+  "Stories",
+  "Post feed",
+  "Carrossel",
+  "Vídeo YouTube",
+  "Vídeo",
+  "Material",
+  "Card",
+  "Banner",
+];
 
 export function ProductionForm({
   candidates,
